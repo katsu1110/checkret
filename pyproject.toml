@@ -1,0 +1,18 @@
+[project]
+name = "checkret"
+version = "0.1.0"
+description = "A modernized backtest report module powered by Polars"
+readme = "README.md"
+authors = [
+    { name = "katsu1110", email = "code1110g-show@hotmail.co.jp" }
+]
+requires-python = ">=3.9"
+dependencies = [
+    "polars>=1.0.0",
+    "numpy>=1.24.0",
+    "matplotlib>=3.7.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
