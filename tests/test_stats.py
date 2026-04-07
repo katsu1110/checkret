@@ -5,7 +5,6 @@ from __future__ import annotations
 import math
 
 import polars as pl
-import pytest
 
 from katsustats import stats
 
@@ -56,10 +55,9 @@ class TestVolatility:
         # Even all-positive returns have non-zero variance
         assert stats.volatility(all_positive_df) > 0
 
-    def test_single_row_raises(self, single_row_df):
-        # Polars std() on 1 element returns None; None * sqrt(252) raises TypeError
-        with pytest.raises(TypeError):
-            stats.volatility(single_row_df)
+    def test_single_row_returns_nan(self, single_row_df):
+        # std of 1 element (ddof=1) is undefined; should return nan not raise
+        assert math.isnan(stats.volatility(single_row_df))
 
 
 class TestSharpe:

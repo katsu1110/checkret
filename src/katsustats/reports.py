@@ -416,14 +416,13 @@ def html(
     Returns:
         The rendered HTML string.
     """
-    # Use non-interactive backend to avoid display side-effects
+    # Use plt.switch_backend() (safe after pyplot import) instead of matplotlib.use()
     orig_backend = matplotlib.get_backend()
-    matplotlib.use("Agg")
-
+    plt.switch_backend("agg")
     try:
         return _build_html(pnl, base_pnl, rf, periods, title, output)
     finally:
-        matplotlib.use(orig_backend)
+        plt.switch_backend(orig_backend)
 
 
 def _build_html(

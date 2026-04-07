@@ -58,7 +58,10 @@ def cagr(df: pl.DataFrame, periods: int = 252) -> float:
 def volatility(df: pl.DataFrame, periods: int = 252) -> float:
     """Annualized volatility (standard deviation of returns)."""
     r = _to_returns(df)
-    return float(r.std() * np.sqrt(periods))
+    std = r.std()
+    if std is None:
+        return float("nan")
+    return float(std * np.sqrt(periods))
 
 
 def sharpe(df: pl.DataFrame, rf: float = 0.0, periods: int = 252) -> float:

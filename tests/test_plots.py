@@ -65,6 +65,11 @@ class TestPlotMonthlyHeatmap:
         fig = plots.plot_monthly_heatmap(single_row_df)
         assert isinstance(fig, Figure)
 
+    def test_empty_df_returns_figure(self, empty_df):
+        # Should return a blank figure rather than raise on zero-size arrays
+        fig = plots.plot_monthly_heatmap(empty_df)
+        assert isinstance(fig, Figure)
+
 
 # ---------------------------------------------------------------------------
 # plot_yearly_returns

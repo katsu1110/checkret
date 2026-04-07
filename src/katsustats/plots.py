@@ -148,6 +148,14 @@ def plot_monthly_heatmap(df: pl.DataFrame, figsize: tuple = (12, 5)) -> Figure:
     )
 
     years = sorted(monthly.get_column("year").unique().to_list())
+
+    if not years:
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes)
+        ax.set_title("Monthly Returns", fontweight="bold", fontsize=13)
+        fig.set_facecolor("white")
+        fig.tight_layout()
+        return fig
     month_names = [
         "Jan",
         "Feb",
@@ -448,9 +456,7 @@ def plot_dow_returns(df: pl.DataFrame, figsize: tuple = (10, 5)) -> Figure:
 
     # Add value labels
     for bar, val in zip(bars1, mean_ret):
-        y_offset = (
-            bar.get_height() * 0.1 if bar.get_height() >= 0 else bar.get_height() * 0.1
-        )
+        y_offset = bar.get_height() * 0.1
         ax1.text(
             bar.get_x() + bar.get_width() / 2,
             bar.get_height() + y_offset,
