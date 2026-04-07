@@ -8,14 +8,14 @@ Primary entry points:
 
 from __future__ import annotations
 
-import io
 import base64
+import io
 
-import polars as pl
 import matplotlib
 import matplotlib.pyplot as plt
+import polars as pl
 
-from . import stats, plots
+from . import plots, stats
 
 
 def _print_df(df: pl.DataFrame, title: str = "") -> None:
@@ -54,8 +54,14 @@ def _print_df(df: pl.DataFrame, title: str = "") -> None:
 def _fig_to_base64(fig: plt.Figure, dpi: int = 150) -> str:
     """Convert a matplotlib Figure to a base64-encoded PNG string."""
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight",
-                facecolor="white", edgecolor="none")
+    fig.savefig(
+        buf,
+        format="png",
+        dpi=dpi,
+        bbox_inches="tight",
+        facecolor="white",
+        edgecolor="none",
+    )
     plt.close(fig)
     buf.seek(0)
     return base64.b64encode(buf.read()).decode("utf-8")
@@ -410,14 +416,13 @@ def html(
     Returns:
         The rendered HTML string.
     """
-    # Use non-interactive backend to avoid display side-effects
+    # Use plt.switch_backend() (safe after pyplot import) instead of matplotlib.use()
     orig_backend = matplotlib.get_backend()
-    matplotlib.use("Agg")
-
+    plt.switch_backend("agg")
     try:
         return _build_html(pnl, base_pnl, rf, periods, title, output)
     finally:
-        matplotlib.use(orig_backend)
+        plt.switch_backend(orig_backend)
 
 
 def _build_html(
@@ -471,7 +476,7 @@ def _build_html(
             f'<div class="highlight-card">'
             f'<div class="label">{label}</div>'
             f'<div class="value {css_cls}">{fmt_val}</div>'
-            f'</div>'
+            f"</div>"
         )
     highlight_cards = "\n    ".join(cards)
 
@@ -480,10 +485,7 @@ def _build_html(
     if dd_df.height > 0:
         dd_table = _df_to_html_table(dd_df)
         drawdown_section = (
-            '<div class="section">'
-            '<h2>Top Drawdowns</h2>'
-            f'{dd_table}'
-            '</div>'
+            f'<div class="section"><h2>Top Drawdowns</h2>{dd_table}</div>'
         )
     else:
         drawdown_section = ""
@@ -509,10 +511,10 @@ def _build_html(
         b64 = _fig_to_base64(fig)
         chart_html_parts.append(
             f'<div class="section">'
-            f'<h2>{chart_title}</h2>'
+            f"<h2>{chart_title}</h2>"
             f'<img class="chart-img" src="data:image/png;base64,{b64}" '
             f'alt="{chart_title}"/>'
-            f'</div>'
+            f"</div>"
         )
     chart_sections = "\n  ".join(chart_html_parts)
 
