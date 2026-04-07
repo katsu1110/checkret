@@ -8,14 +8,13 @@ scalar metric values or Polars DataFrames.
 
 from __future__ import annotations
 
-import polars as pl
 import numpy as np
-from datetime import date
-
+import polars as pl
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _to_returns(df: pl.DataFrame) -> pl.Series:
     """Extract the pnl column as a Polars Series."""
@@ -35,6 +34,7 @@ def _cumulative_value(returns: pl.Series) -> pl.Series:
 # ---------------------------------------------------------------------------
 # Core Metrics
 # ---------------------------------------------------------------------------
+
 
 def total_return(df: pl.DataFrame) -> float:
     """Total compounded return over the full period."""
@@ -80,7 +80,7 @@ def sortino(df: pl.DataFrame, rf: float = 0.0, periods: int = 252) -> float:
     downside = excess.filter(excess < 0)
     if downside.len() == 0:
         return float("inf")
-    downside_std = float((downside ** 2).mean() ** 0.5)
+    downside_std = float((downside**2).mean() ** 0.5)
     if downside_std == 0:
         return 0.0
     return float(excess.mean() / downside_std * np.sqrt(periods))
@@ -180,6 +180,7 @@ def kurtosis(df: pl.DataFrame) -> float:
 # Drawdown Analysis
 # ---------------------------------------------------------------------------
 
+
 def drawdown_details(df: pl.DataFrame, top_n: int = 5) -> pl.DataFrame:
     """
     Top-N drawdowns with start, trough, recovery dates, max drawdown, and
@@ -212,24 +213,30 @@ def drawdown_details(df: pl.DataFrame, top_n: int = 5) -> pl.DataFrame:
                     trough_idx = i
                 i += 1
             recovery_idx = i if i < n else None
-            periods.append({
-                "start": dates_np[start_idx],
-                "trough": dates_np[trough_idx],
-                "recovery": dates_np[recovery_idx] if recovery_idx is not None else None,
-                "max_dd": min_dd,
-                "days": (trough_idx - start_idx),
-            })
+            periods.append(
+                {
+                    "start": dates_np[start_idx],
+                    "trough": dates_np[trough_idx],
+                    "recovery": dates_np[recovery_idx]
+                    if recovery_idx is not None
+                    else None,
+                    "max_dd": min_dd,
+                    "days": (trough_idx - start_idx),
+                }
+            )
         else:
             i += 1
 
     if not periods:
-        return pl.DataFrame({
-            "start": pl.Series([], dtype=pl.Date),
-            "trough": pl.Series([], dtype=pl.Date),
-            "recovery": pl.Series([], dtype=pl.Date),
-            "max_dd": pl.Series([], dtype=pl.Float64),
-            "days": pl.Series([], dtype=pl.Int64),
-        })
+        return pl.DataFrame(
+            {
+                "start": pl.Series([], dtype=pl.Date),
+                "trough": pl.Series([], dtype=pl.Date),
+                "recovery": pl.Series([], dtype=pl.Date),
+                "max_dd": pl.Series([], dtype=pl.Float64),
+                "days": pl.Series([], dtype=pl.Int64),
+            }
+        )
 
     result = pl.DataFrame(periods)
     result = result.sort("max_dd").head(top_n)
@@ -239,6 +246,7 @@ def drawdown_details(df: pl.DataFrame, top_n: int = 5) -> pl.DataFrame:
 # ---------------------------------------------------------------------------
 # Benchmark Comparison Metrics
 # ---------------------------------------------------------------------------
+
 
 def alpha_beta(
     df: pl.DataFrame, base_df: pl.DataFrame, periods: int = 252
@@ -290,6 +298,7 @@ def excess_return(df: pl.DataFrame, base_df: pl.DataFrame) -> float:
 # Day-of-Week Analysis (New Feature)
 # ---------------------------------------------------------------------------
 
+
 def day_of_week_stats(df: pl.DataFrame) -> pl.DataFrame:
     """
     Returns a DataFrame with day-of-week level statistics:
@@ -298,10 +307,7 @@ def day_of_week_stats(df: pl.DataFrame) -> pl.DataFrame:
     dow: 1=Monday .. 7=Sunday (ISO weekday)
     """
     result = (
-        df
-        .with_columns(
-            pl.col("date").cast(pl.Date).dt.weekday().alias("dow")
-        )
+        df.with_columns(pl.col("date").cast(pl.Date).dt.weekday().alias("dow"))
         .group_by("dow")
         .agg(
             pl.col("pnl").mean().alias("mean_return"),
@@ -311,10 +317,12 @@ def day_of_week_stats(df: pl.DataFrame) -> pl.DataFrame:
         )
         .sort("dow")
         .with_columns(
-            pl.col("dow").replace_strict(
+            pl.col("dow")
+            .replace_strict(
                 {1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat", 7: "Sun"},
                 return_dtype=pl.Utf8,
-            ).alias("dow_name")
+            )
+            .alias("dow_name")
         )
     )
     return result
@@ -324,7 +332,10 @@ def day_of_week_stats(df: pl.DataFrame) -> pl.DataFrame:
 # Rolling Metrics
 # ---------------------------------------------------------------------------
 
-def rolling_sharpe(df: pl.DataFrame, window: int = 126, periods: int = 252) -> pl.DataFrame:
+
+def rolling_sharpe(
+    df: pl.DataFrame, window: int = 126, periods: int = 252
+) -> pl.DataFrame:
     """Rolling Sharpe ratio over a given window."""
     r = _to_returns(df)
     dates = df.get_column("date")
@@ -339,13 +350,17 @@ def rolling_sharpe(df: pl.DataFrame, window: int = 126, periods: int = 252) -> p
         if std > 0:
             sharpe_vals[i] = (chunk.mean() / std) * np.sqrt(periods)
 
-    return pl.DataFrame({
-        "date": dates,
-        "rolling_sharpe": sharpe_vals,
-    })
+    return pl.DataFrame(
+        {
+            "date": dates,
+            "rolling_sharpe": sharpe_vals,
+        }
+    )
 
 
-def rolling_volatility(df: pl.DataFrame, window: int = 126, periods: int = 252) -> pl.DataFrame:
+def rolling_volatility(
+    df: pl.DataFrame, window: int = 126, periods: int = 252
+) -> pl.DataFrame:
     """Rolling annualized volatility over a given window."""
     r = _to_returns(df)
     dates = df.get_column("date")
@@ -358,15 +373,18 @@ def rolling_volatility(df: pl.DataFrame, window: int = 126, periods: int = 252) 
         chunk = r_np[i - window : i]
         vol_vals[i] = chunk.std(ddof=1) * np.sqrt(periods)
 
-    return pl.DataFrame({
-        "date": dates,
-        "rolling_vol": vol_vals,
-    })
+    return pl.DataFrame(
+        {
+            "date": dates,
+            "rolling_vol": vol_vals,
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
 # Summary Table Builder
 # ---------------------------------------------------------------------------
+
 
 def summary_metrics(
     df: pl.DataFrame,
@@ -378,6 +396,7 @@ def summary_metrics(
     Build a summary metrics table. Returns a Polars DataFrame with columns:
         [metric, strategy, benchmark] (benchmark only if base_df provided)
     """
+
     def _compute(d: pl.DataFrame) -> dict[str, str]:
         return {
             "Total Return": f"{total_return(d):.2%}",
@@ -415,8 +434,20 @@ def summary_metrics(
         ir = information_ratio(df, base_df, periods)
         ex_ret = excess_return(df, base_df)
 
-        comparison_metrics = ["Alpha", "Beta", "Correlation", "Information Ratio", "Excess Return"]
-        comparison_strat = [f"{a:.2%}", f"{b:.2f}", f"{corr:.2f}", f"{ir:.2f}", f"{ex_ret:.2%}"]
+        comparison_metrics = [
+            "Alpha",
+            "Beta",
+            "Correlation",
+            "Information Ratio",
+            "Excess Return",
+        ]
+        comparison_strat = [
+            f"{a:.2%}",
+            f"{b:.2f}",
+            f"{corr:.2f}",
+            f"{ir:.2f}",
+            f"{ex_ret:.2%}",
+        ]
         comparison_bench = ["—", "—", "—", "—", "—"]
 
         data["metric"].extend(comparison_metrics)

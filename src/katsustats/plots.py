@@ -7,11 +7,10 @@ and return matplotlib Figure objects for inline notebook display.
 
 from __future__ import annotations
 
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import numpy as np
 import polars as pl
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-import matplotlib.ticker as mticker
 from matplotlib.figure import Figure
 
 from . import stats
@@ -21,12 +20,12 @@ from . import stats
 # ---------------------------------------------------------------------------
 
 _COLORS = {
-    "strategy": "#2196F3",      # Material Blue
-    "benchmark": "#FF9800",     # Material Orange
-    "positive": "#4CAF50",      # Material Green
-    "negative": "#F44336",      # Material Red
-    "neutral": "#9E9E9E",       # Material Grey
-    "fill": "#BBDEFB",          # Light Blue
+    "strategy": "#2196F3",  # Material Blue
+    "benchmark": "#FF9800",  # Material Orange
+    "positive": "#4CAF50",  # Material Green
+    "negative": "#F44336",  # Material Red
+    "neutral": "#9E9E9E",  # Material Grey
+    "fill": "#BBDEFB",  # Light Blue
     "grid": "#E0E0E0",
     "text": "#212121",
     "text_secondary": "#757575",
@@ -65,6 +64,7 @@ def _pct_formatter(x, _):
 # Plot: Cumulative Returns
 # ---------------------------------------------------------------------------
 
+
 def plot_cumulative_returns(
     df: pl.DataFrame,
     base_df: pl.DataFrame | None = None,
@@ -79,7 +79,9 @@ def plot_cumulative_returns(
     _apply_style(ax, fig)
 
     ax.fill_between(dates, 0, cumval.to_numpy(), alpha=0.15, color=_COLORS["strategy"])
-    ax.plot(dates, cumval.to_numpy(), lw=1.8, color=_COLORS["strategy"], label="Strategy")
+    ax.plot(
+        dates, cumval.to_numpy(), lw=1.8, color=_COLORS["strategy"], label="Strategy"
+    )
 
     if base_df is not None:
         br = stats._to_returns(base_df)
@@ -87,7 +89,10 @@ def plot_cumulative_returns(
         ax.plot(
             base_df.get_column("date").to_numpy(),
             bcum.to_numpy(),
-            lw=1.4, color=_COLORS["benchmark"], label="Benchmark", alpha=0.85,
+            lw=1.4,
+            color=_COLORS["benchmark"],
+            label="Benchmark",
+            alpha=0.85,
         )
 
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
@@ -102,6 +107,7 @@ def plot_cumulative_returns(
 # ---------------------------------------------------------------------------
 # Plot: Drawdown (Underwater)
 # ---------------------------------------------------------------------------
+
 
 def plot_drawdown(df: pl.DataFrame, figsize: tuple = (12, 4)) -> Figure:
     """Underwater chart showing drawdown periods."""
@@ -128,11 +134,11 @@ def plot_drawdown(df: pl.DataFrame, figsize: tuple = (12, 4)) -> Figure:
 # Plot: Monthly Heatmap
 # ---------------------------------------------------------------------------
 
+
 def plot_monthly_heatmap(df: pl.DataFrame, figsize: tuple = (12, 5)) -> Figure:
     """Month × Year return heatmap."""
     monthly = (
-        df
-        .with_columns(
+        df.with_columns(
             pl.col("date").cast(pl.Date).dt.year().alias("year"),
             pl.col("date").cast(pl.Date).dt.month().alias("month"),
         )
@@ -142,9 +148,20 @@ def plot_monthly_heatmap(df: pl.DataFrame, figsize: tuple = (12, 5)) -> Figure:
     )
 
     years = sorted(monthly.get_column("year").unique().to_list())
-    months = list(range(1, 13))
-    month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    month_names = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+    ]
 
     # Build 2D array
     data = np.full((len(years), 12), np.nan)
@@ -160,8 +177,12 @@ def plot_monthly_heatmap(df: pl.DataFrame, figsize: tuple = (12, 5)) -> Figure:
     if vmax == 0:
         vmax = 0.01
     im = ax.imshow(
-        data, cmap="RdYlGn", aspect="auto",
-        vmin=-vmax, vmax=vmax, interpolation="nearest",
+        data,
+        cmap="RdYlGn",
+        aspect="auto",
+        vmin=-vmax,
+        vmax=vmax,
+        interpolation="nearest",
     )
 
     ax.set_xticks(range(12))
@@ -176,12 +197,22 @@ def plot_monthly_heatmap(df: pl.DataFrame, figsize: tuple = (12, 5)) -> Figure:
             if not np.isnan(val):
                 color = "white" if abs(val) > vmax * 0.6 else _COLORS["text"]
                 ax.text(
-                    j, i, f"{val:.1%}", ha="center", va="center",
-                    fontsize=8, color=color, fontweight="bold",
+                    j,
+                    i,
+                    f"{val:.1%}",
+                    ha="center",
+                    va="center",
+                    fontsize=8,
+                    color=color,
+                    fontweight="bold",
                 )
 
-    ax.set_title("Monthly Returns", fontweight="bold", fontsize=13, color=_COLORS["text"], pad=12)
-    fig.colorbar(im, ax=ax, format=mticker.FuncFormatter(_pct_formatter), shrink=0.8, pad=0.02)
+    ax.set_title(
+        "Monthly Returns", fontweight="bold", fontsize=13, color=_COLORS["text"], pad=12
+    )
+    fig.colorbar(
+        im, ax=ax, format=mticker.FuncFormatter(_pct_formatter), shrink=0.8, pad=0.02
+    )
     fig.set_facecolor("white")
     fig.tight_layout()
     return fig
@@ -191,16 +222,17 @@ def plot_monthly_heatmap(df: pl.DataFrame, figsize: tuple = (12, 5)) -> Figure:
 # Plot: Yearly Returns
 # ---------------------------------------------------------------------------
 
+
 def plot_yearly_returns(
     df: pl.DataFrame,
     base_df: pl.DataFrame | None = None,
     figsize: tuple = (12, 5),
 ) -> Figure:
     """Bar chart of annual returns."""
+
     def _yearly(d: pl.DataFrame) -> pl.DataFrame:
         return (
-            d
-            .with_columns(pl.col("date").cast(pl.Date).dt.year().alias("year"))
+            d.with_columns(pl.col("date").cast(pl.Date).dt.year().alias("year"))
             .group_by("year")
             .agg(((pl.col("pnl") + 1).product() - 1).alias("ret"))
             .sort("year")
@@ -216,17 +248,28 @@ def plot_yearly_returns(
     x = np.arange(len(years))
     width = 0.35 if base_df is not None else 0.6
 
-    ax.bar(x, strat_vals, width, label="Strategy", color=_COLORS["strategy"], alpha=0.85)
+    ax.bar(
+        x, strat_vals, width, label="Strategy", color=_COLORS["strategy"], alpha=0.85
+    )
 
     if base_df is not None:
         bench_y = _yearly(base_df)
         # Align by year
-        bench_dict = dict(zip(
-            bench_y.get_column("year").to_list(),
-            bench_y.get_column("ret").to_list(),
-        ))
+        bench_dict = dict(
+            zip(
+                bench_y.get_column("year").to_list(),
+                bench_y.get_column("ret").to_list(),
+            )
+        )
         bench_vals = np.array([bench_dict.get(y, 0.0) for y in years])
-        ax.bar(x + width, bench_vals, width, label="Benchmark", color=_COLORS["benchmark"], alpha=0.85)
+        ax.bar(
+            x + width,
+            bench_vals,
+            width,
+            label="Benchmark",
+            color=_COLORS["benchmark"],
+            alpha=0.85,
+        )
 
     ax.set_xticks(x + (width / 2 if base_df is not None else 0))
     ax.set_xticklabels([str(y) for y in years], fontsize=9)
@@ -242,6 +285,7 @@ def plot_yearly_returns(
 # Plot: Return Distribution
 # ---------------------------------------------------------------------------
 
+
 def plot_return_distribution(
     df: pl.DataFrame,
     base_df: pl.DataFrame | None = None,
@@ -254,15 +298,37 @@ def plot_return_distribution(
     fig, ax = plt.subplots(figsize=figsize)
     _apply_style(ax, fig)
 
-    ax.hist(r, bins=bins, alpha=0.7, color=_COLORS["strategy"], label="Strategy",
-            edgecolor="white", linewidth=0.5, density=True)
+    ax.hist(
+        r,
+        bins=bins,
+        alpha=0.7,
+        color=_COLORS["strategy"],
+        label="Strategy",
+        edgecolor="white",
+        linewidth=0.5,
+        density=True,
+    )
 
     if base_df is not None:
         br = stats._to_returns(base_df).to_numpy()
-        ax.hist(br, bins=bins, alpha=0.5, color=_COLORS["benchmark"], label="Benchmark",
-                edgecolor="white", linewidth=0.5, density=True)
+        ax.hist(
+            br,
+            bins=bins,
+            alpha=0.5,
+            color=_COLORS["benchmark"],
+            label="Benchmark",
+            edgecolor="white",
+            linewidth=0.5,
+            density=True,
+        )
 
-    ax.axvline(float(np.mean(r)), color=_COLORS["negative"], ls="--", lw=1.2, label=f"Mean ({np.mean(r):.4f})")
+    ax.axvline(
+        float(np.mean(r)),
+        color=_COLORS["negative"],
+        ls="--",
+        lw=1.2,
+        label=f"Mean ({np.mean(r):.4f})",
+    )
     ax.xaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
     ax.legend(fontsize=9, frameon=False)
     _add_title(ax, fig, "Daily Return Distribution")
@@ -273,6 +339,7 @@ def plot_return_distribution(
 # ---------------------------------------------------------------------------
 # Plot: Rolling Sharpe
 # ---------------------------------------------------------------------------
+
 
 def plot_rolling_sharpe(
     df: pl.DataFrame,
@@ -295,7 +362,10 @@ def plot_rolling_sharpe(
         ax.plot(
             broll.get_column("date").to_numpy(),
             broll.get_column("rolling_sharpe").to_numpy(),
-            lw=1.2, color=_COLORS["benchmark"], label="Benchmark", alpha=0.8,
+            lw=1.2,
+            color=_COLORS["benchmark"],
+            label="Benchmark",
+            alpha=0.8,
         )
 
     ax.axhline(0, color=_COLORS["neutral"], lw=0.8, ls="--")
@@ -309,6 +379,7 @@ def plot_rolling_sharpe(
 # ---------------------------------------------------------------------------
 # Plot: Rolling Volatility
 # ---------------------------------------------------------------------------
+
 
 def plot_rolling_volatility(
     df: pl.DataFrame,
@@ -332,7 +403,10 @@ def plot_rolling_volatility(
         ax.plot(
             broll.get_column("date").to_numpy(),
             broll.get_column("rolling_vol").to_numpy(),
-            lw=1.2, color=_COLORS["benchmark"], label="Benchmark", alpha=0.8,
+            lw=1.2,
+            color=_COLORS["benchmark"],
+            label="Benchmark",
+            alpha=0.8,
         )
 
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
@@ -346,6 +420,7 @@ def plot_rolling_volatility(
 # ---------------------------------------------------------------------------
 # Plot: Day-of-Week Returns (New Feature)
 # ---------------------------------------------------------------------------
+
 
 def plot_dow_returns(df: pl.DataFrame, figsize: tuple = (10, 5)) -> Figure:
     """Day-of-week bar chart showing mean return and win rate."""
@@ -362,36 +437,65 @@ def plot_dow_returns(df: pl.DataFrame, figsize: tuple = (10, 5)) -> Figure:
     # --- Mean Return ---
     _apply_style(ax1, fig)
     colors = [_COLORS["positive"] if v >= 0 else _COLORS["negative"] for v in mean_ret]
-    bars1 = ax1.bar(names, mean_ret, color=colors, alpha=0.85, edgecolor="white", linewidth=0.5)
+    bars1 = ax1.bar(
+        names, mean_ret, color=colors, alpha=0.85, edgecolor="white", linewidth=0.5
+    )
     ax1.axhline(0, color=_COLORS["neutral"], lw=0.8, ls="--")
     ax1.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
-    ax1.set_title("Mean Return by Day", fontweight="bold", fontsize=11, color=_COLORS["text"])
+    ax1.set_title(
+        "Mean Return by Day", fontweight="bold", fontsize=11, color=_COLORS["text"]
+    )
 
     # Add value labels
     for bar, val in zip(bars1, mean_ret):
-        y_offset = bar.get_height() * 0.1 if bar.get_height() >= 0 else bar.get_height() * 0.1
+        y_offset = (
+            bar.get_height() * 0.1 if bar.get_height() >= 0 else bar.get_height() * 0.1
+        )
         ax1.text(
-            bar.get_x() + bar.get_width() / 2, bar.get_height() + y_offset,
-            f"{val:.3%}", ha="center", va="bottom" if val >= 0 else "top",
-            fontsize=8, color=_COLORS["text_secondary"],
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + y_offset,
+            f"{val:.3%}",
+            ha="center",
+            va="bottom" if val >= 0 else "top",
+            fontsize=8,
+            color=_COLORS["text_secondary"],
         )
 
     # --- Win Rate ---
     _apply_style(ax2, fig)
-    bars2 = ax2.bar(names, wr, color=_DOW_COLORS[:len(names)], alpha=0.85, edgecolor="white", linewidth=0.5)
+    bars2 = ax2.bar(
+        names,
+        wr,
+        color=_DOW_COLORS[: len(names)],
+        alpha=0.85,
+        edgecolor="white",
+        linewidth=0.5,
+    )
     ax2.axhline(0.5, color=_COLORS["neutral"], lw=0.8, ls="--")
     ax2.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
     ax2.set_ylim(0, 1)
-    ax2.set_title("Win Rate by Day", fontweight="bold", fontsize=11, color=_COLORS["text"])
+    ax2.set_title(
+        "Win Rate by Day", fontweight="bold", fontsize=11, color=_COLORS["text"]
+    )
 
     for bar, val in zip(bars2, wr):
         ax2.text(
-            bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.02,
-            f"{val:.1%}", ha="center", va="bottom",
-            fontsize=8, color=_COLORS["text_secondary"],
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.02,
+            f"{val:.1%}",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+            color=_COLORS["text_secondary"],
         )
 
     fig.set_facecolor("white")
-    fig.suptitle("Day-of-Week Analysis", fontweight="bold", fontsize=13, color=_COLORS["text"], y=1.02)
+    fig.suptitle(
+        "Day-of-Week Analysis",
+        fontweight="bold",
+        fontsize=13,
+        color=_COLORS["text"],
+        y=1.02,
+    )
     fig.tight_layout()
     return fig

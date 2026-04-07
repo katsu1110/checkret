@@ -7,6 +7,6 @@ Usage:
     katsustats.reports.html(pnl, output="report.html")   # HTML report
 """
 
-from . import reports, stats, plots  # noqa: F401
+from . import plots, reports, stats  # noqa: F401
 
 __version__ = "0.1.0"

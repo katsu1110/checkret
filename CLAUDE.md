@@ -17,12 +17,13 @@ No classes. All functions expect a Polars DataFrame with `date: pl.Date` and `pn
 ## Setup
 
 ```bash
-uv sync
+uv sync --dev   # includes pytest + ruff
 ```
 
 - Python 3.13 (`.python-version`), requires >=3.9
 - Build backend: hatchling (src layout)
 - Dependencies: polars, numpy, matplotlib
+- Dev dependencies: pytest, ruff
 
 ## Build
 
@@ -30,9 +31,15 @@ uv sync
 uv build
 ```
 
-## Tests
+## Tests and linting
 
-No test suite exists yet.
+```bash
+uv run ruff check src/ tests/         # lint
+uv run ruff format --check src/ tests/ # format check
+uv run pytest tests/ -v               # 113 tests across stats/plots/reports
+```
+
+CI runs on every PR and push to main (`.github/workflows/ci.yml`). All tests and ruff checks must pass before merging.
 
 ## Code conventions
 
@@ -44,3 +51,4 @@ No test suite exists yet.
 - Input validation via `assert` statements
 - Plot styling centralized in `_COLORS` dict with `_apply_style()` / `_add_title()` helpers
 - Purely functional — no OOP
+- Ruff: line-length=88, target py39, select E/W/F/I/UP, ignore E501

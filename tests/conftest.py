@@ -1,0 +1,137 @@
+"""Shared fixtures for katsustats tests."""
+
+from __future__ import annotations
+
+import datetime
+
+import matplotlib
+import polars as pl
+import pytest
+
+matplotlib.use("Agg")
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+_WEEKDAYS = [
+    datetime.date(2023, 1, 2),  # Mon
+    datetime.date(2023, 1, 3),  # Tue
+    datetime.date(2023, 1, 4),  # Wed
+    datetime.date(2023, 1, 5),  # Thu
+    datetime.date(2023, 1, 6),  # Fri
+    datetime.date(2023, 1, 9),  # Mon
+    datetime.date(2023, 1, 10),  # Tue
+    datetime.date(2023, 1, 11),  # Wed
+    datetime.date(2023, 1, 12),  # Thu
+    datetime.date(2023, 1, 13),  # Fri
+    datetime.date(2023, 1, 16),  # Mon
+    datetime.date(2023, 1, 17),  # Tue
+    datetime.date(2023, 1, 18),  # Wed
+    datetime.date(2023, 1, 19),  # Thu
+    datetime.date(2023, 1, 20),  # Fri
+    datetime.date(2023, 1, 23),  # Mon
+    datetime.date(2023, 1, 24),  # Tue
+    datetime.date(2023, 1, 25),  # Wed
+    datetime.date(2023, 1, 26),  # Thu
+    datetime.date(2023, 1, 27),  # Fri
+]
+
+_RETURNS = [
+    0.01,
+    -0.005,
+    0.008,
+    -0.012,
+    0.003,
+    0.015,
+    -0.007,
+    0.002,
+    -0.004,
+    0.009,
+    -0.011,
+    0.006,
+    0.013,
+    -0.002,
+    0.004,
+    0.007,
+    -0.008,
+    0.001,
+    -0.003,
+    0.011,
+]
+
+_BENCH_RETURNS = [
+    0.005,
+    -0.003,
+    0.006,
+    -0.008,
+    0.002,
+    0.009,
+    -0.004,
+    0.001,
+    -0.006,
+    0.007,
+    -0.006,
+    0.004,
+    0.008,
+    -0.001,
+    0.003,
+    0.005,
+    -0.005,
+    0.003,
+    -0.002,
+    0.006,
+]
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def sample_df() -> pl.DataFrame:
+    """20 weekdays, mix of positive and negative returns."""
+    return pl.DataFrame({"date": _WEEKDAYS, "pnl": _RETURNS}).with_columns(
+        pl.col("date").cast(pl.Date)
+    )
+
+
+@pytest.fixture
+def benchmark_df() -> pl.DataFrame:
+    """20 weekdays, benchmark returns."""
+    return pl.DataFrame({"date": _WEEKDAYS, "pnl": _BENCH_RETURNS}).with_columns(
+        pl.col("date").cast(pl.Date)
+    )
+
+
+@pytest.fixture
+def empty_df() -> pl.DataFrame:
+    """0-row DataFrame with correct schema."""
+    return pl.DataFrame(
+        {"date": pl.Series([], dtype=pl.Date), "pnl": pl.Series([], dtype=pl.Float64)}
+    )
+
+
+@pytest.fixture
+def single_row_df() -> pl.DataFrame:
+    """1-row DataFrame."""
+    return pl.DataFrame(
+        {"date": [datetime.date(2023, 1, 2)], "pnl": [0.01]}
+    ).with_columns(pl.col("date").cast(pl.Date))
+
+
+@pytest.fixture
+def all_positive_df() -> pl.DataFrame:
+    """10 weekdays, all positive returns."""
+    return pl.DataFrame(
+        {"date": _WEEKDAYS[:10], "pnl": [0.005, 0.010, 0.003, 0.007, 0.002] * 2}
+    ).with_columns(pl.col("date").cast(pl.Date))
+
+
+@pytest.fixture
+def all_negative_df() -> pl.DataFrame:
+    """10 weekdays, all negative returns."""
+    return pl.DataFrame(
+        {"date": _WEEKDAYS[:10], "pnl": [-0.005, -0.010, -0.003, -0.007, -0.002] * 2}
+    ).with_columns(pl.col("date").cast(pl.Date))
