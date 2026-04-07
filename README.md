@@ -79,6 +79,20 @@ results = checkret.reports.full(
 )
 ```
 
+## HTML report
+
+Generate a self-contained HTML report (similar to `qs.reports.html()`):
+
+```python
+# Save to file
+checkret.reports.html(pnl, base_pnl=benchmark, title="My Strategy", output="report.html")
+
+# Or get HTML string
+html_str = checkret.reports.html(pnl, title="My Strategy")
+```
+
+The report includes headline metric cards, performance tables, drawdown analysis, day-of-week statistics, and all 8 charts embedded as images — all in a single `.html` file that works offline.
+
 ## Using individual modules
 
 ```python
