@@ -1,6 +1,10 @@
 # Checkret
 
-A simple backtest tool for your return series. Put your return series, and you get backtest results with visualizations and key metrics.
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
+A simple backtest tool for your return series, inspired by [quantstats](https://github.com/ranaroussi/quantstats). 
+
+Put your return series, and you get backtest results with visualizations and key metrics.
 
 # How to use
 
