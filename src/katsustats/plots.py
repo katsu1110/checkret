@@ -60,7 +60,7 @@ def _pct_formatter(x, _):
     return f"{x:.0%}" if abs(x) < 1 else f"{x:.1%}"
 
 
-def _empty_plot(message: str, figsize: tuple, title: str) -> Figure:
+def _empty_plot(message: str, figsize: tuple[float, float], title: str) -> Figure:
     """Return a blank figure with a centered message."""
     fig, ax = plt.subplots(figsize=figsize)
     ax.text(0.5, 0.5, message, ha="center", va="center", transform=ax.transAxes)
@@ -241,7 +241,17 @@ def plot_group_pnl(
     group_col: str = "group",
     figsize: tuple = (12, 5),
 ) -> Figure:
-    """Line chart of cumulative PnL by group."""
+    """
+    Line chart of cumulative PnL by group.
+
+    Args:
+        df: Polars DataFrame with ["date", "pnl", group_col] columns.
+        group_col: Group column name (default "group").
+        figsize: Figure size.
+
+    Returns:
+        matplotlib Figure containing cumulative group PnL lines.
+    """
     assert "date" in df.columns, "df must have a 'date' column"
     assert "pnl" in df.columns, "df must have a 'pnl' column"
     assert group_col in df.columns, f"df must have a '{group_col}' column"

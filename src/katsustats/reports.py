@@ -92,7 +92,15 @@ def _prepare_report_pnl(
     pnl: pl.DataFrame,
     group_col: str | None = None,
 ) -> tuple[pl.DataFrame, pl.DataFrame | None, str | None]:
-    """Normalize report inputs for portfolio-level and grouped PnL data."""
+    """
+    Normalize report inputs for portfolio-level and grouped PnL data.
+
+    Returns:
+        A tuple of (portfolio_pnl, grouped_pnl, resolved_group_col), where
+        portfolio_pnl is aggregated to one row per date, grouped_pnl retains
+        date/group granularity when grouping is enabled, and resolved_group_col
+        is the active group column name.
+    """
     assert "date" in pnl.columns, "pnl must have a 'date' column"
     assert "pnl" in pnl.columns, "pnl must have a 'pnl' column"
 
