@@ -97,9 +97,10 @@ def _prepare_report_pnl(
 
     Returns:
         A tuple of (portfolio_pnl, grouped_pnl, resolved_group_col), where
-        portfolio_pnl is aggregated to one row per date, grouped_pnl retains
-        date/group granularity when grouping is enabled, and resolved_group_col
-        is the active group column name.
+        portfolio_pnl is aggregated to one row per date when grouping is
+        enabled; otherwise it is the input PnL sorted by date. grouped_pnl
+        retains date/group granularity when grouping is enabled, and
+        resolved_group_col is the active group column name.
     """
     assert "date" in pnl.columns, "pnl must have a 'date' column"
     assert "pnl" in pnl.columns, "pnl must have a 'pnl' column"
@@ -324,12 +325,13 @@ _HTML_TEMPLATE = """\
 def full(
     pnl: pl.DataFrame,
     base_pnl: pl.DataFrame | None = None,
-    group_col: str | None = None,
     rf: float = 0.0,
     periods: int = 252,
     figsize_main: tuple = (12, 5),
     figsize_small: tuple = (12, 4),
     show: bool = True,
+    *,
+    group_col: str | None = None,
 ) -> dict:
     """
     Generate a full backtest report with metrics and plots.
@@ -442,11 +444,12 @@ def full(
 def html(
     pnl: pl.DataFrame,
     base_pnl: pl.DataFrame | None = None,
-    group_col: str | None = None,
     rf: float = 0.0,
     periods: int = 252,
     title: str = "Strategy",
     output: str | None = None,
+    *,
+    group_col: str | None = None,
 ) -> str:
     """
     Generate a self-contained HTML backtest report.
@@ -468,7 +471,15 @@ def html(
     orig_backend = matplotlib.get_backend()
     plt.switch_backend("agg")
     try:
-        return _build_html(pnl, base_pnl, group_col, rf, periods, title, output)
+        return _build_html(
+            pnl,
+            base_pnl,
+            group_col=group_col,
+            rf=rf,
+            periods=periods,
+            title=title,
+            output=output,
+        )
     finally:
         plt.switch_backend(orig_backend)
 

@@ -283,11 +283,12 @@ def plot_group_pnl(
 
     cmap = plt.get_cmap("tab20")
     for idx, name in enumerate(group_names):
+        column_name = str(name)
         ax.plot(
             dates,
-            cum.get_column(name).to_numpy(),
+            cum.get_column(column_name).to_numpy(),
             lw=1.6,
-            label=str(name),
+            label=column_name,
             color=cmap(idx % 20),
         )
 

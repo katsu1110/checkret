@@ -77,6 +77,10 @@ class TestFull:
         result = reports.full(sector_df, group_col="sector", show=False)
         assert "group_cumulative_pnl" in result["figures"]
 
+    def test_positional_rf_still_supported(self, sample_df):
+        result = reports.full(sample_df, None, 0.04, show=False)
+        assert isinstance(result["metrics"], pl.DataFrame)
+
 
 # ---------------------------------------------------------------------------
 # reports.html
@@ -134,3 +138,7 @@ class TestHtml:
         sector_df = grouped_sample_df.rename({"group": "sector"})
         result = reports.html(sector_df, group_col="sector")
         assert "Group-level PnL" in result
+
+    def test_positional_rf_still_supported(self, sample_df):
+        result = reports.html(sample_df, None, 0.04)
+        assert isinstance(result, str)
