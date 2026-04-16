@@ -66,10 +66,11 @@ class TestFull:
         with pytest.raises(AssertionError):
             reports.full(bad_df, show=False)
 
-    def test_grouped_input_adds_group_figure(self, grouped_sample_df):
+    def test_grouped_input_adds_group_figure(self, sample_df, grouped_sample_df):
+        base_result = reports.full(sample_df, show=False)
         result = reports.full(grouped_sample_df, show=False)
         assert "group_cumulative_pnl" in result["figures"]
-        assert len(result["figures"]) == 9
+        assert len(result["figures"]) == len(base_result["figures"]) + 1
 
     def test_custom_group_column(self, grouped_sample_df):
         sector_df = grouped_sample_df.rename({"group": "sector"})

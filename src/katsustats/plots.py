@@ -245,7 +245,9 @@ def plot_group_pnl(
     Line chart of cumulative PnL by group.
 
     Args:
-        df: Polars DataFrame with ["date", "pnl", group_col] columns.
+        df: Polars DataFrame with ["date", "pnl", group_col] columns. Raw rows
+            are aggregated by date/group before plotting, and missing
+            date/group combinations are treated as zero PnL.
         group_col: Group column name (default "group").
         figsize: Figure size.
 
