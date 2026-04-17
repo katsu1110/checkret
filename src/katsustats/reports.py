@@ -89,43 +89,6 @@ def _df_to_html_table(df: pl.DataFrame, *, css_class: str = "metrics") -> str:
     return f'<table class="{css_class}">{"".join(rows_html)}</table>'
 
 
-def _prepare_report_pnl(
-    pnl: DataFrameLike,
-    group_col: str | None = None,
-) -> tuple[pl.DataFrame, pl.DataFrame | None, str | None]:
-    """
-    Normalize report inputs for portfolio-level and grouped PnL data.
-
-    Returns:
-        A tuple of (portfolio_pnl, grouped_pnl, resolved_group_col), where
-        portfolio_pnl is aggregated to one row per date when grouping is
-        enabled; otherwise it is the input PnL sorted by date. grouped_pnl
-        retains date/group granularity when grouping is enabled, and
-        resolved_group_col is the active group column name.
-    """
-    pnl = ensure_polars(pnl, name="pnl")
-    assert "date" in pnl.columns, "pnl must have a 'date' column"
-    assert "pnl" in pnl.columns, "pnl must have a 'pnl' column"
-
-    resolved_group_col = group_col or ("group" if "group" in pnl.columns else None)
-    if resolved_group_col is None:
-        return pnl.sort("date"), None, None
-
-    assert resolved_group_col in pnl.columns, (
-        f"pnl must have a '{resolved_group_col}' column"
-    )
-
-    grouped_pnl = (
-        pnl.group_by(["date", resolved_group_col])
-        .agg(pl.col("pnl").sum().alias("pnl"))
-        .sort(["date", resolved_group_col])
-    )
-    portfolio_pnl = (
-        grouped_pnl.group_by("date").agg(pl.col("pnl").sum().alias("pnl")).sort("date")
-    )
-    return portfolio_pnl, grouped_pnl, resolved_group_col
-
-
 # ---------------------------------------------------------------------------
 # HTML Template
 # ---------------------------------------------------------------------------
@@ -332,17 +295,13 @@ def full(
     figsize_main: tuple = (12, 5),
     figsize_small: tuple = (12, 4),
     show: bool = True,
-    *,
-    group_col: str | None = None,
 ) -> dict:
     """
     Generate a full backtest report with metrics and plots.
 
     Args:
-        pnl: Polars or pandas DataFrame with ["date", "pnl"] columns,
-            optionally plus a group column for grouped portfolio PnL.
+        pnl: Polars or pandas DataFrame with ["date", "pnl"] columns (daily returns).
         base_pnl: Optional benchmark DataFrame with same schema.
-        group_col: Optional group column name. Defaults to "group" when present.
         rf: Risk-free rate (annualized, default 0.0).
         periods: Trading days per year (default 252).
         figsize_main: Figure size for main charts.
@@ -353,85 +312,82 @@ def full(
         dict with keys: "metrics", "drawdowns", "dow_stats", "figures"
     """
     # Validate inputs
-    portfolio_pnl, grouped_pnl, resolved_group_col = _prepare_report_pnl(pnl, group_col)
+    pnl = ensure_polars(pnl, name="pnl")
+    assert "date" in pnl.columns, "pnl must have a 'date' column"
+    assert "pnl" in pnl.columns, "pnl must have a 'pnl' column"
     if base_pnl is not None:
         base_pnl = ensure_polars(base_pnl, name="base_pnl")
         assert "date" in base_pnl.columns, "base_pnl must have a 'date' column"
         assert "pnl" in base_pnl.columns, "base_pnl must have a 'pnl' column"
 
-    # Sort by date
+    # Sort by date and assert one row per date
+    pnl = pnl.sort("date")
+    assert pnl["date"].n_unique() == pnl.height, (
+        "pnl must have one row per date; pass pre-aggregated portfolio-level returns"
+    )
     if base_pnl is not None:
         base_pnl = base_pnl.sort("date")
 
     # ── 1. Metrics Summary ──────────────────────────────────────────
-    metrics = stats.summary_metrics(portfolio_pnl, base_pnl, rf, periods)
+    metrics = stats.summary_metrics(pnl, base_pnl, rf, periods)
     _print_df(metrics, "Performance Metrics")
 
     # ── 2. Top Drawdowns ────────────────────────────────────────────
-    dd = stats.drawdown_details(portfolio_pnl)
+    dd = stats.drawdown_details(pnl)
     if dd.height > 0:
         _print_df(dd, "Top 5 Drawdowns")
 
     # ── 3. Day-of-Week Stats ────────────────────────────────────────
-    dow = stats.day_of_week_stats(portfolio_pnl)
+    dow = stats.day_of_week_stats(pnl)
     _print_df(dow, "Day-of-Week Statistics")
 
     # ── 4. Plots ────────────────────────────────────────────────────
     figures: dict[str, plt.Figure] = {}
 
     # Cumulative Returns
-    fig = plots.plot_cumulative_returns(portfolio_pnl, base_pnl, figsize=figsize_main)
+    fig = plots.plot_cumulative_returns(pnl, base_pnl, figsize=figsize_main)
     figures["cumulative_returns"] = fig
     if show:
         fig.show()
 
-    # Group-level PnL
-    if grouped_pnl is not None and resolved_group_col is not None:
-        fig = plots.plot_group_pnl(
-            grouped_pnl, group_col=resolved_group_col, figsize=figsize_main
-        )
-        figures["group_cumulative_pnl"] = fig
-        if show:
-            fig.show()
-
     # Drawdown
-    fig = plots.plot_drawdown(portfolio_pnl, figsize=figsize_small)
+    fig = plots.plot_drawdown(pnl, figsize=figsize_small)
     figures["drawdown"] = fig
     if show:
         fig.show()
 
     # Monthly Heatmap
-    fig = plots.plot_monthly_heatmap(portfolio_pnl, figsize=figsize_main)
+    fig = plots.plot_monthly_heatmap(pnl, figsize=figsize_main)
     figures["monthly_heatmap"] = fig
     if show:
         fig.show()
 
     # Yearly Returns
-    fig = plots.plot_yearly_returns(portfolio_pnl, base_pnl, figsize=figsize_main)
+    fig = plots.plot_yearly_returns(pnl, base_pnl, figsize=figsize_main)
     figures["yearly_returns"] = fig
     if show:
         fig.show()
 
     # Return Distribution
-    fig = plots.plot_return_distribution(portfolio_pnl, base_pnl, figsize=figsize_main)
+    fig = plots.plot_return_distribution(pnl, base_pnl, figsize=figsize_main)
     figures["distribution"] = fig
     if show:
         fig.show()
 
     # Rolling Sharpe
-    fig = plots.plot_rolling_sharpe(portfolio_pnl, base_pnl, figsize=figsize_small)
+    fig = plots.plot_rolling_sharpe(pnl, base_pnl, figsize=figsize_small)
     figures["rolling_sharpe"] = fig
     if show:
         fig.show()
 
     # Rolling Volatility
-    fig = plots.plot_rolling_volatility(portfolio_pnl, base_pnl, figsize=figsize_small)
+    fig = plots.plot_rolling_volatility(pnl, base_pnl, figsize=figsize_small)
     figures["rolling_volatility"] = fig
     if show:
         fig.show()
 
     # Day-of-Week Analysis
-    fig = plots.plot_dow_returns(portfolio_pnl)
+    fig = plots.plot_dow_returns(pnl)
     figures["dow_returns"] = fig
     if show:
         fig.show()
@@ -451,17 +407,13 @@ def html(
     periods: int = 252,
     title: str = "Strategy",
     output: str | None = None,
-    *,
-    group_col: str | None = None,
 ) -> str:
     """
     Generate a self-contained HTML backtest report.
 
     Args:
-        pnl: Polars or pandas DataFrame with ["date", "pnl"] columns,
-            optionally plus a group column for grouped portfolio PnL.
+        pnl: Polars or pandas DataFrame with ["date", "pnl"] columns (daily returns).
         base_pnl: Optional benchmark DataFrame with same schema.
-        group_col: Optional group column name. Defaults to "group" when present.
         rf: Risk-free rate (annualized, default 0.0).
         periods: Trading days per year (default 252).
         title: Report title (default "Strategy").
@@ -474,15 +426,7 @@ def html(
     orig_backend = matplotlib.get_backend()
     plt.switch_backend("agg")
     try:
-        return _build_html(
-            pnl,
-            base_pnl,
-            group_col=group_col,
-            rf=rf,
-            periods=periods,
-            title=title,
-            output=output,
-        )
+        return _build_html(pnl, base_pnl, rf, periods, title, output)
     finally:
         plt.switch_backend(orig_backend)
 
@@ -490,7 +434,6 @@ def html(
 def _build_html(
     pnl: DataFrameLike,
     base_pnl: DataFrameLike | None,
-    group_col: str | None,
     rf: float,
     periods: int,
     title: str,
@@ -498,34 +441,40 @@ def _build_html(
 ) -> str:
     """Internal: build the HTML report string."""
     # Validate
-    portfolio_pnl, grouped_pnl, resolved_group_col = _prepare_report_pnl(pnl, group_col)
+    pnl = ensure_polars(pnl, name="pnl")
+    assert "date" in pnl.columns, "pnl must have a 'date' column"
+    assert "pnl" in pnl.columns, "pnl must have a 'pnl' column"
     if base_pnl is not None:
         base_pnl = ensure_polars(base_pnl, name="base_pnl")
         assert "date" in base_pnl.columns, "base_pnl must have a 'date' column"
         assert "pnl" in base_pnl.columns, "base_pnl must have a 'pnl' column"
 
+    pnl = pnl.sort("date")
+    assert pnl["date"].n_unique() == pnl.height, (
+        "pnl must have one row per date; pass pre-aggregated portfolio-level returns"
+    )
     if base_pnl is not None:
         base_pnl = base_pnl.sort("date")
 
     # ── Metadata ────────────────────────────────────────────────────
-    dates = portfolio_pnl.get_column("date")
+    dates = pnl.get_column("date")
     date_start = str(dates.min())
     date_end = str(dates.max())
     n_days = len(dates)
     date_range = f"{date_start} → {date_end}"
 
     # ── Metrics ─────────────────────────────────────────────────────
-    metrics_df = stats.summary_metrics(portfolio_pnl, base_pnl, rf, periods)
+    metrics_df = stats.summary_metrics(pnl, base_pnl, rf, periods)
     metrics_table = _df_to_html_table(metrics_df)
 
     # ── Headline cards ──────────────────────────────────────────────
     highlight_defs = [
-        ("Total Return", stats.total_return(portfolio_pnl), True),
-        ("CAGR", stats.cagr(portfolio_pnl, periods), True),
-        ("Sharpe", stats.sharpe(portfolio_pnl, rf, periods), False),
-        ("Max Drawdown", stats.max_drawdown(portfolio_pnl), True),
-        ("Volatility", stats.volatility(portfolio_pnl, periods), True),
-        ("Win Rate", stats.win_rate(portfolio_pnl), True),
+        ("Total Return", stats.total_return(pnl), True),
+        ("CAGR", stats.cagr(pnl, periods), True),
+        ("Sharpe", stats.sharpe(pnl, rf, periods), False),
+        ("Max Drawdown", stats.max_drawdown(pnl), True),
+        ("Volatility", stats.volatility(pnl, periods), True),
+        ("Win Rate", stats.win_rate(pnl), True),
     ]
     cards: list[str] = []
     for label, val, is_pct in highlight_defs:
@@ -543,7 +492,7 @@ def _build_html(
     highlight_cards = "\n    ".join(cards)
 
     # ── Drawdowns ───────────────────────────────────────────────────
-    dd_df = stats.drawdown_details(portfolio_pnl)
+    dd_df = stats.drawdown_details(pnl)
     if dd_df.height > 0:
         dd_table = _df_to_html_table(dd_df)
         drawdown_section = (
@@ -553,37 +502,20 @@ def _build_html(
         drawdown_section = ""
 
     # ── Day-of-Week ─────────────────────────────────────────────────
-    dow_df = stats.day_of_week_stats(portfolio_pnl)
+    dow_df = stats.day_of_week_stats(pnl)
     dow_table = _df_to_html_table(dow_df)
 
     # ── Charts ──────────────────────────────────────────────────────
     chart_specs = [
-        (
-            "Cumulative Returns",
-            plots.plot_cumulative_returns(portfolio_pnl, base_pnl),
-        ),
-        ("Drawdown", plots.plot_drawdown(portfolio_pnl)),
-        ("Monthly Returns Heatmap", plots.plot_monthly_heatmap(portfolio_pnl)),
-        ("Yearly Returns", plots.plot_yearly_returns(portfolio_pnl, base_pnl)),
-        (
-            "Daily Return Distribution",
-            plots.plot_return_distribution(portfolio_pnl, base_pnl),
-        ),
-        ("Rolling Sharpe", plots.plot_rolling_sharpe(portfolio_pnl, base_pnl)),
-        (
-            "Rolling Volatility",
-            plots.plot_rolling_volatility(portfolio_pnl, base_pnl),
-        ),
-        ("Day-of-Week Analysis", plots.plot_dow_returns(portfolio_pnl)),
+        ("Cumulative Returns", plots.plot_cumulative_returns(pnl, base_pnl)),
+        ("Drawdown", plots.plot_drawdown(pnl)),
+        ("Monthly Returns Heatmap", plots.plot_monthly_heatmap(pnl)),
+        ("Yearly Returns", plots.plot_yearly_returns(pnl, base_pnl)),
+        ("Daily Return Distribution", plots.plot_return_distribution(pnl, base_pnl)),
+        ("Rolling Sharpe", plots.plot_rolling_sharpe(pnl, base_pnl)),
+        ("Rolling Volatility", plots.plot_rolling_volatility(pnl, base_pnl)),
+        ("Day-of-Week Analysis", plots.plot_dow_returns(pnl)),
     ]
-    if grouped_pnl is not None and resolved_group_col is not None:
-        chart_specs.insert(
-            1,
-            (
-                "Group-level PnL",
-                plots.plot_group_pnl(grouped_pnl, group_col=resolved_group_col),
-            ),
-        )
 
     chart_html_parts: list[str] = []
     for chart_title, fig in chart_specs:
