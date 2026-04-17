@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import polars as pl
 
 from . import plots, stats
+from ._dataframe import DataFrameLike, ensure_polars
 
 
 def _print_df(df: pl.DataFrame, title: str = "") -> None:
@@ -89,7 +90,7 @@ def _df_to_html_table(df: pl.DataFrame, *, css_class: str = "metrics") -> str:
 
 
 def _prepare_report_pnl(
-    pnl: pl.DataFrame,
+    pnl: DataFrameLike,
     group_col: str | None = None,
 ) -> tuple[pl.DataFrame, pl.DataFrame | None, str | None]:
     """
@@ -102,6 +103,7 @@ def _prepare_report_pnl(
         retains date/group granularity when grouping is enabled, and
         resolved_group_col is the active group column name.
     """
+    pnl = ensure_polars(pnl, name="pnl")
     assert "date" in pnl.columns, "pnl must have a 'date' column"
     assert "pnl" in pnl.columns, "pnl must have a 'pnl' column"
 
@@ -323,8 +325,8 @@ _HTML_TEMPLATE = """\
 
 
 def full(
-    pnl: pl.DataFrame,
-    base_pnl: pl.DataFrame | None = None,
+    pnl: DataFrameLike,
+    base_pnl: DataFrameLike | None = None,
     rf: float = 0.0,
     periods: int = 252,
     figsize_main: tuple = (12, 5),
@@ -337,8 +339,8 @@ def full(
     Generate a full backtest report with metrics and plots.
 
     Args:
-        pnl: Polars DataFrame with ["date", "pnl"] columns, optionally plus a
-            group column for grouped portfolio PnL.
+        pnl: Polars or pandas DataFrame with ["date", "pnl"] columns,
+            optionally plus a group column for grouped portfolio PnL.
         base_pnl: Optional benchmark DataFrame with same schema.
         group_col: Optional group column name. Defaults to "group" when present.
         rf: Risk-free rate (annualized, default 0.0).
@@ -353,6 +355,7 @@ def full(
     # Validate inputs
     portfolio_pnl, grouped_pnl, resolved_group_col = _prepare_report_pnl(pnl, group_col)
     if base_pnl is not None:
+        base_pnl = ensure_polars(base_pnl, name="base_pnl")
         assert "date" in base_pnl.columns, "base_pnl must have a 'date' column"
         assert "pnl" in base_pnl.columns, "base_pnl must have a 'pnl' column"
 
@@ -442,8 +445,8 @@ def full(
 
 
 def html(
-    pnl: pl.DataFrame,
-    base_pnl: pl.DataFrame | None = None,
+    pnl: DataFrameLike,
+    base_pnl: DataFrameLike | None = None,
     rf: float = 0.0,
     periods: int = 252,
     title: str = "Strategy",
@@ -455,8 +458,8 @@ def html(
     Generate a self-contained HTML backtest report.
 
     Args:
-        pnl: Polars DataFrame with ["date", "pnl"] columns, optionally plus a
-            group column for grouped portfolio PnL.
+        pnl: Polars or pandas DataFrame with ["date", "pnl"] columns,
+            optionally plus a group column for grouped portfolio PnL.
         base_pnl: Optional benchmark DataFrame with same schema.
         group_col: Optional group column name. Defaults to "group" when present.
         rf: Risk-free rate (annualized, default 0.0).
@@ -485,8 +488,8 @@ def html(
 
 
 def _build_html(
-    pnl: pl.DataFrame,
-    base_pnl: pl.DataFrame | None,
+    pnl: DataFrameLike,
+    base_pnl: DataFrameLike | None,
     group_col: str | None,
     rf: float,
     periods: int,
@@ -497,6 +500,7 @@ def _build_html(
     # Validate
     portfolio_pnl, grouped_pnl, resolved_group_col = _prepare_report_pnl(pnl, group_col)
     if base_pnl is not None:
+        base_pnl = ensure_polars(base_pnl, name="base_pnl")
         assert "date" in base_pnl.columns, "base_pnl must have a 'date' column"
         assert "pnl" in base_pnl.columns, "base_pnl must have a 'pnl' column"
 

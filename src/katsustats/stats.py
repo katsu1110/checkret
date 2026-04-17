@@ -1,7 +1,7 @@
 """
 katsustats.stats — Financial metrics computed with Polars.
 
-All functions accept a Polars DataFrame with columns ["date", "pnl"]
+All functions accept a Polars or pandas DataFrame with columns ["date", "pnl"]
 where "pnl" represents daily P&L (profit/loss) values, and return
 scalar metric values or Polars DataFrames.
 """
@@ -11,13 +11,16 @@ from __future__ import annotations
 import numpy as np
 import polars as pl
 
+from ._dataframe import DataFrameLike, ensure_polars
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def _to_returns(df: pl.DataFrame) -> pl.Series:
+def _to_returns(df: DataFrameLike, name: str = "df") -> pl.Series:
     """Extract the pnl column as a Polars Series."""
+    df = ensure_polars(df, name=name)
     return df.get_column("pnl")
 
 
@@ -36,13 +39,13 @@ def _cumulative_value(returns: pl.Series) -> pl.Series:
 # ---------------------------------------------------------------------------
 
 
-def total_return(df: pl.DataFrame) -> float:
+def total_return(df: DataFrameLike) -> float:
     """Total compounded return over the full period."""
     r = _to_returns(df)
     return float((r + 1).product() - 1)
 
 
-def cagr(df: pl.DataFrame, periods: int = 252) -> float:
+def cagr(df: DataFrameLike, periods: int = 252) -> float:
     """Compound Annual Growth Rate."""
     r = _to_returns(df)
     n = r.len()
@@ -55,7 +58,7 @@ def cagr(df: pl.DataFrame, periods: int = 252) -> float:
     return float(total ** (1 / years) - 1)
 
 
-def volatility(df: pl.DataFrame, periods: int = 252) -> float:
+def volatility(df: DataFrameLike, periods: int = 252) -> float:
     """Annualized volatility (standard deviation of returns)."""
     r = _to_returns(df)
     std = r.std()
@@ -64,7 +67,7 @@ def volatility(df: pl.DataFrame, periods: int = 252) -> float:
     return float(std * np.sqrt(periods))
 
 
-def sharpe(df: pl.DataFrame, rf: float = 0.0, periods: int = 252) -> float:
+def sharpe(df: DataFrameLike, rf: float = 0.0, periods: int = 252) -> float:
     """Annualized Sharpe ratio."""
     r = _to_returns(df)
     rf_per_period = rf / periods
@@ -75,7 +78,7 @@ def sharpe(df: pl.DataFrame, rf: float = 0.0, periods: int = 252) -> float:
     return float(excess.mean() / std * np.sqrt(periods))
 
 
-def sortino(df: pl.DataFrame, rf: float = 0.0, periods: int = 252) -> float:
+def sortino(df: DataFrameLike, rf: float = 0.0, periods: int = 252) -> float:
     """Annualized Sortino ratio (downside deviation only)."""
     r = _to_returns(df)
     rf_per_period = rf / periods
@@ -89,7 +92,7 @@ def sortino(df: pl.DataFrame, rf: float = 0.0, periods: int = 252) -> float:
     return float(excess.mean() / downside_std * np.sqrt(periods))
 
 
-def max_drawdown(df: pl.DataFrame) -> float:
+def max_drawdown(df: DataFrameLike) -> float:
     """Maximum drawdown (returned as a negative value)."""
     r = _to_returns(df)
     cumval = _cumulative_value(r)
@@ -98,7 +101,7 @@ def max_drawdown(df: pl.DataFrame) -> float:
     return float(dd.min())
 
 
-def calmar(df: pl.DataFrame, periods: int = 252) -> float:
+def calmar(df: DataFrameLike, periods: int = 252) -> float:
     """Calmar ratio: CAGR / |Max Drawdown|."""
     mdd = max_drawdown(df)
     if mdd == 0:
@@ -106,7 +109,7 @@ def calmar(df: pl.DataFrame, periods: int = 252) -> float:
     return cagr(df, periods) / abs(mdd)
 
 
-def win_rate(df: pl.DataFrame) -> float:
+def win_rate(df: DataFrameLike) -> float:
     """Percentage of days with positive returns."""
     r = _to_returns(df)
     n = r.len()
@@ -115,7 +118,7 @@ def win_rate(df: pl.DataFrame) -> float:
     return float((r > 0).sum() / n)
 
 
-def profit_factor(df: pl.DataFrame) -> float:
+def profit_factor(df: DataFrameLike) -> float:
     """Gross profits / gross losses."""
     r = _to_returns(df)
     gains = r.filter(r > 0).sum()
@@ -125,17 +128,17 @@ def profit_factor(df: pl.DataFrame) -> float:
     return float(gains / losses)
 
 
-def best_day(df: pl.DataFrame) -> float:
+def best_day(df: DataFrameLike) -> float:
     """Best single-day return."""
     return float(_to_returns(df).max())
 
 
-def worst_day(df: pl.DataFrame) -> float:
+def worst_day(df: DataFrameLike) -> float:
     """Worst single-day return."""
     return float(_to_returns(df).min())
 
 
-def avg_win(df: pl.DataFrame) -> float:
+def avg_win(df: DataFrameLike) -> float:
     """Average return on winning days."""
     r = _to_returns(df)
     wins = r.filter(r > 0)
@@ -144,7 +147,7 @@ def avg_win(df: pl.DataFrame) -> float:
     return float(wins.mean())
 
 
-def avg_loss(df: pl.DataFrame) -> float:
+def avg_loss(df: DataFrameLike) -> float:
     """Average return on losing days."""
     r = _to_returns(df)
     losses = r.filter(r < 0)
@@ -153,13 +156,13 @@ def avg_loss(df: pl.DataFrame) -> float:
     return float(losses.mean())
 
 
-def value_at_risk(df: pl.DataFrame, alpha: float = 0.05) -> float:
+def value_at_risk(df: DataFrameLike, alpha: float = 0.05) -> float:
     """Daily Value at Risk at the given confidence level."""
     r = _to_returns(df)
     return float(r.quantile(alpha, interpolation="linear"))
 
 
-def recovery_factor(df: pl.DataFrame) -> float:
+def recovery_factor(df: DataFrameLike) -> float:
     """Total return / |Max Drawdown|."""
     mdd = max_drawdown(df)
     if mdd == 0:
@@ -167,13 +170,13 @@ def recovery_factor(df: pl.DataFrame) -> float:
     return total_return(df) / abs(mdd)
 
 
-def skewness(df: pl.DataFrame) -> float:
+def skewness(df: DataFrameLike) -> float:
     """Skewness of daily returns."""
     r = _to_returns(df)
     return float(r.skew())
 
 
-def kurtosis(df: pl.DataFrame) -> float:
+def kurtosis(df: DataFrameLike) -> float:
     """Excess kurtosis of daily returns."""
     r = _to_returns(df)
     return float(r.kurtosis())
@@ -184,7 +187,7 @@ def kurtosis(df: pl.DataFrame) -> float:
 # ---------------------------------------------------------------------------
 
 
-def drawdown_details(df: pl.DataFrame, top_n: int = 5) -> pl.DataFrame:
+def drawdown_details(df: DataFrameLike, top_n: int = 5) -> pl.DataFrame:
     """
     Top-N drawdowns with start, trough, recovery dates, max drawdown, and
     duration in days.
@@ -192,6 +195,7 @@ def drawdown_details(df: pl.DataFrame, top_n: int = 5) -> pl.DataFrame:
     Returns a Polars DataFrame with columns:
         [start, trough, recovery, max_dd, days]
     """
+    df = ensure_polars(df)
     r = _to_returns(df)
     dates = df.get_column("date")
     cumval = _cumulative_value(r)
@@ -252,7 +256,7 @@ def drawdown_details(df: pl.DataFrame, top_n: int = 5) -> pl.DataFrame:
 
 
 def alpha_beta(
-    df: pl.DataFrame, base_df: pl.DataFrame, periods: int = 252
+    df: DataFrameLike, base_df: DataFrameLike, periods: int = 252
 ) -> tuple[float, float]:
     """Annualized alpha and beta vs benchmark using OLS."""
     r = _to_returns(df).to_numpy()
@@ -270,7 +274,7 @@ def alpha_beta(
     return alpha_annual, beta
 
 
-def correlation(df: pl.DataFrame, base_df: pl.DataFrame) -> float:
+def correlation(df: DataFrameLike, base_df: DataFrameLike) -> float:
     """Pearson correlation between strategy and benchmark returns."""
     r = _to_returns(df).to_numpy()
     b = _to_returns(base_df).to_numpy()
@@ -279,7 +283,7 @@ def correlation(df: pl.DataFrame, base_df: pl.DataFrame) -> float:
 
 
 def information_ratio(
-    df: pl.DataFrame, base_df: pl.DataFrame, periods: int = 252
+    df: DataFrameLike, base_df: DataFrameLike, periods: int = 252
 ) -> float:
     """Annualized information ratio (excess return / tracking error)."""
     r = _to_returns(df)
@@ -292,7 +296,7 @@ def information_ratio(
     return float(excess.mean() / te * np.sqrt(periods))
 
 
-def excess_return(df: pl.DataFrame, base_df: pl.DataFrame) -> float:
+def excess_return(df: DataFrameLike, base_df: DataFrameLike) -> float:
     """Total compounded excess return vs benchmark."""
     return total_return(df) - total_return(base_df)
 
@@ -302,13 +306,14 @@ def excess_return(df: pl.DataFrame, base_df: pl.DataFrame) -> float:
 # ---------------------------------------------------------------------------
 
 
-def day_of_week_stats(df: pl.DataFrame) -> pl.DataFrame:
+def day_of_week_stats(df: DataFrameLike) -> pl.DataFrame:
     """
     Returns a DataFrame with day-of-week level statistics:
         [dow, dow_name, mean_return, win_rate, total_return, count]
 
     dow: 1=Monday .. 7=Sunday (ISO weekday)
     """
+    df = ensure_polars(df)
     result = (
         df.with_columns(pl.col("date").cast(pl.Date).dt.weekday().alias("dow"))
         .group_by("dow")
@@ -337,9 +342,10 @@ def day_of_week_stats(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def rolling_sharpe(
-    df: pl.DataFrame, window: int = 126, periods: int = 252
+    df: DataFrameLike, window: int = 126, periods: int = 252
 ) -> pl.DataFrame:
     """Rolling Sharpe ratio over a given window."""
+    df = ensure_polars(df)
     r = _to_returns(df)
     dates = df.get_column("date")
 
@@ -362,9 +368,10 @@ def rolling_sharpe(
 
 
 def rolling_volatility(
-    df: pl.DataFrame, window: int = 126, periods: int = 252
+    df: DataFrameLike, window: int = 126, periods: int = 252
 ) -> pl.DataFrame:
     """Rolling annualized volatility over a given window."""
+    df = ensure_polars(df)
     r = _to_returns(df)
     dates = df.get_column("date")
 
@@ -390,8 +397,8 @@ def rolling_volatility(
 
 
 def summary_metrics(
-    df: pl.DataFrame,
-    base_df: pl.DataFrame | None = None,
+    df: DataFrameLike,
+    base_df: DataFrameLike | None = None,
     rf: float = 0.0,
     periods: int = 252,
 ) -> pl.DataFrame:
@@ -399,6 +406,10 @@ def summary_metrics(
     Build a summary metrics table. Returns a Polars DataFrame with columns:
         [metric, strategy, benchmark] (benchmark only if base_df provided)
     """
+
+    df = ensure_polars(df)
+    if base_df is not None:
+        base_df = ensure_polars(base_df, name="base_df")
 
     def _compute(d: pl.DataFrame) -> dict[str, str]:
         return {
