@@ -31,4 +31,4 @@ def ensure_polars(df: DataFrameLike, *, name: str = "df") -> pl.DataFrame:
             result = result.with_columns(pl.col("date").cast(pl.Date))
         return result
 
-    raise AssertionError(f"{name} must be a Polars or pandas DataFrame")
+    raise TypeError(f"{name} must be a Polars or pandas DataFrame")
