@@ -35,6 +35,10 @@ class TestPlotCumulativeReturns:
         fig = plots.plot_cumulative_returns(sample_df, figsize=(8, 3))
         assert isinstance(fig, Figure)
 
+    def test_accepts_pandas_inputs(self, sample_pandas_df, benchmark_pandas_df):
+        fig = plots.plot_cumulative_returns(sample_pandas_df, base_df=benchmark_pandas_df)
+        assert isinstance(fig, Figure)
+
 
 # ---------------------------------------------------------------------------
 # plot_drawdown
@@ -176,4 +180,8 @@ class TestPlotGroupPnl:
             .alias("group_id")
         ).drop("group")
         fig = plots.plot_group_pnl(numeric_df, group_col="group_id")
+        assert isinstance(fig, Figure)
+
+    def test_accepts_pandas_input(self, grouped_sample_pandas_df):
+        fig = plots.plot_group_pnl(grouped_sample_pandas_df)
         assert isinstance(fig, Figure)

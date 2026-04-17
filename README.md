@@ -22,14 +22,19 @@ uv add katsustats
 
 ## Data format
 
-`katsustats` expects a [Polars](https://pola.rs/) DataFrame with two required columns:
+`katsustats` accepts either a [Polars](https://pola.rs/) or pandas DataFrame
+with two required columns:
 
 | column | type | description |
 |--------|------|-------------|
 | `date` | `pl.Date` | Trading date |
 | `pnl`  | `pl.Float64` | Daily return (e.g. `0.01` = +1%) |
 
-An optional `group` column can also be included for grouped portfolio PnL, such as sector-level contributions.
+When a pandas DataFrame is passed, `katsustats` converts it to Polars at the
+start of processing.
+
+An optional `group` column can also be included for grouped portfolio PnL, such
+as sector-level contributions.
 
 ## Basic usage
 
@@ -44,6 +49,19 @@ pnl = pl.DataFrame({
 })
 
 # Generate the full report (prints metrics + shows all plots)
+results = katsustats.reports.full(pnl)
+```
+
+Pandas inputs work too:
+
+```python
+import pandas as pd
+
+pnl = pd.DataFrame({
+    "date": dates,
+    "pnl": your_daily_returns,
+})
+
 results = katsustats.reports.full(pnl)
 ```
 

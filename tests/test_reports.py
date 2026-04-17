@@ -81,6 +81,10 @@ class TestFull:
         result = reports.full(sample_df, None, 0.04, show=False)
         assert isinstance(result["metrics"], pl.DataFrame)
 
+    def test_accepts_pandas_inputs(self, sample_pandas_df, benchmark_pandas_df):
+        result = reports.full(sample_pandas_df, base_pnl=benchmark_pandas_df, show=False)
+        assert isinstance(result["metrics"], pl.DataFrame)
+
 
 # ---------------------------------------------------------------------------
 # reports.html
@@ -142,3 +146,7 @@ class TestHtml:
     def test_positional_rf_still_supported(self, sample_df):
         result = reports.html(sample_df, None, 0.04)
         assert isinstance(result, str)
+
+    def test_accepts_grouped_pandas_input(self, grouped_sample_pandas_df):
+        result = reports.html(grouped_sample_pandas_df)
+        assert "Group-level PnL" in result

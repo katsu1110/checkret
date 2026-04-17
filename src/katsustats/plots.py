@@ -1,8 +1,8 @@
 """
 katsustats.plots — Matplotlib chart functions for backtest visualization.
 
-All plot functions accept Polars DataFrames with ["date", "pnl"] columns
-and return matplotlib Figure objects for inline notebook display.
+All plot functions accept Polars or pandas DataFrames with ["date", "pnl"]
+columns and return matplotlib Figure objects for inline notebook display.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ import numpy as np
 import polars as pl
 from matplotlib.figure import Figure
 
+from ._dataframe import DataFrameLike, ensure_polars
 from . import stats
 
 # ---------------------------------------------------------------------------
@@ -76,11 +77,14 @@ def _empty_plot(message: str, figsize: tuple[float, float], title: str) -> Figur
 
 
 def plot_cumulative_returns(
-    df: pl.DataFrame,
-    base_df: pl.DataFrame | None = None,
+    df: DataFrameLike,
+    base_df: DataFrameLike | None = None,
     figsize: tuple = (12, 5),
 ) -> Figure:
     """Cumulative return curve for strategy vs benchmark."""
+    df = ensure_polars(df)
+    if base_df is not None:
+        base_df = ensure_polars(base_df, name="base_df")
     r = stats._to_returns(df)
     cumval = stats._cumulative(r)
     dates = df.get_column("date").to_numpy()
@@ -119,8 +123,9 @@ def plot_cumulative_returns(
 # ---------------------------------------------------------------------------
 
 
-def plot_drawdown(df: pl.DataFrame, figsize: tuple = (12, 4)) -> Figure:
+def plot_drawdown(df: DataFrameLike, figsize: tuple = (12, 4)) -> Figure:
     """Underwater chart showing drawdown periods."""
+    df = ensure_polars(df)
     r = stats._to_returns(df)
     cumval = stats._cumulative_value(r)
     running_max = cumval.cum_max()
@@ -145,8 +150,9 @@ def plot_drawdown(df: pl.DataFrame, figsize: tuple = (12, 4)) -> Figure:
 # ---------------------------------------------------------------------------
 
 
-def plot_monthly_heatmap(df: pl.DataFrame, figsize: tuple = (12, 5)) -> Figure:
+def plot_monthly_heatmap(df: DataFrameLike, figsize: tuple = (12, 5)) -> Figure:
     """Month × Year return heatmap."""
+    df = ensure_polars(df)
     monthly = (
         df.with_columns(
             pl.col("date").cast(pl.Date).dt.year().alias("year"),
@@ -237,7 +243,7 @@ def plot_monthly_heatmap(df: pl.DataFrame, figsize: tuple = (12, 5)) -> Figure:
 
 
 def plot_group_pnl(
-    df: pl.DataFrame,
+    df: DataFrameLike,
     group_col: str = "group",
     figsize: tuple = (12, 5),
 ) -> Figure:
@@ -254,6 +260,7 @@ def plot_group_pnl(
     Returns:
         matplotlib Figure containing cumulative group PnL lines.
     """
+    df = ensure_polars(df)
     assert "date" in df.columns, "df must have a 'date' column"
     assert "pnl" in df.columns, "df must have a 'pnl' column"
     assert group_col in df.columns, f"df must have a '{group_col}' column"
@@ -307,11 +314,14 @@ def plot_group_pnl(
 
 
 def plot_yearly_returns(
-    df: pl.DataFrame,
-    base_df: pl.DataFrame | None = None,
+    df: DataFrameLike,
+    base_df: DataFrameLike | None = None,
     figsize: tuple = (12, 5),
 ) -> Figure:
     """Bar chart of annual returns."""
+    df = ensure_polars(df)
+    if base_df is not None:
+        base_df = ensure_polars(base_df, name="base_df")
 
     def _yearly(d: pl.DataFrame) -> pl.DataFrame:
         return (
@@ -370,12 +380,15 @@ def plot_yearly_returns(
 
 
 def plot_return_distribution(
-    df: pl.DataFrame,
-    base_df: pl.DataFrame | None = None,
+    df: DataFrameLike,
+    base_df: DataFrameLike | None = None,
     bins: int = 50,
     figsize: tuple = (12, 5),
 ) -> Figure:
     """Histogram of daily returns."""
+    df = ensure_polars(df)
+    if base_df is not None:
+        base_df = ensure_polars(base_df, name="base_df")
     r = stats._to_returns(df).to_numpy()
 
     fig, ax = plt.subplots(figsize=figsize)
@@ -425,12 +438,15 @@ def plot_return_distribution(
 
 
 def plot_rolling_sharpe(
-    df: pl.DataFrame,
-    base_df: pl.DataFrame | None = None,
+    df: DataFrameLike,
+    base_df: DataFrameLike | None = None,
     window: int = 126,
     figsize: tuple = (12, 4),
 ) -> Figure:
     """Rolling Sharpe ratio over a given window."""
+    df = ensure_polars(df)
+    if base_df is not None:
+        base_df = ensure_polars(base_df, name="base_df")
     roll = stats.rolling_sharpe(df, window)
     dates = roll.get_column("date").to_numpy()
     vals = roll.get_column("rolling_sharpe").to_numpy()
@@ -465,12 +481,15 @@ def plot_rolling_sharpe(
 
 
 def plot_rolling_volatility(
-    df: pl.DataFrame,
-    base_df: pl.DataFrame | None = None,
+    df: DataFrameLike,
+    base_df: DataFrameLike | None = None,
     window: int = 126,
     figsize: tuple = (12, 4),
 ) -> Figure:
     """Rolling annualized volatility over a given window."""
+    df = ensure_polars(df)
+    if base_df is not None:
+        base_df = ensure_polars(base_df, name="base_df")
     roll = stats.rolling_volatility(df, window)
     dates = roll.get_column("date").to_numpy()
     vals = roll.get_column("rolling_vol").to_numpy()
@@ -505,8 +524,9 @@ def plot_rolling_volatility(
 # ---------------------------------------------------------------------------
 
 
-def plot_dow_returns(df: pl.DataFrame, figsize: tuple = (10, 5)) -> Figure:
+def plot_dow_returns(df: DataFrameLike, figsize: tuple = (10, 5)) -> Figure:
     """Day-of-week bar chart showing mean return and win rate."""
+    df = ensure_polars(df)
     dow_df = stats.day_of_week_stats(df)
     # Filter to weekdays (1-5)
     dow_df = dow_df.filter(pl.col("dow") <= 5)
