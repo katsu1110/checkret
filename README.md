@@ -33,9 +33,6 @@ with two required columns:
 When a pandas DataFrame is passed, `katsustats` converts it to Polars at the
 start of processing.
 
-An optional `group` column can also be included for grouped portfolio PnL, such
-as sector-level contributions.
-
 ## Basic usage
 
 ```python
@@ -87,27 +84,6 @@ results = katsustats.reports.full(pnl, base_pnl=benchmark)
 
 When a benchmark is provided, the metrics table also includes **Alpha**, **Beta**, **Correlation**, **Information Ratio**, and **Excess Return**.
 
-## With grouped portfolio PnL
-
-If your input includes a `group` column, `katsustats` will aggregate the daily portfolio PnL for the standard report sections and add a group-level cumulative PnL chart to the report.
-
-```python
-sector_pnl = pl.DataFrame({
-    "date": dates,
-    "group": sectors,   # e.g. "Tech", "Energy", ...
-    "pnl": sector_daily_pnl,
-})
-
-results = katsustats.reports.full(sector_pnl, show=False)
-html_str = katsustats.reports.html(sector_pnl, title="Sector Report")
-```
-
-If your grouping column has a different name, pass it explicitly:
-
-```python
-katsustats.reports.full(sector_pnl.rename({"group": "sector"}), group_col="sector")
-```
-
 ## Advanced options
 
 ```python
@@ -132,7 +108,7 @@ katsustats.reports.html(pnl, base_pnl=benchmark, title="My Strategy", output="re
 html_str = katsustats.reports.html(pnl, title="My Strategy")
 ```
 
-The report includes headline metric cards, performance tables, drawdown analysis, day-of-week statistics, and all charts embedded as images — all in a single `.html` file that works offline.
+The report includes headline metric cards, performance tables, drawdown analysis, day-of-week statistics, and all 8 charts embedded as images — all in a single `.html` file that works offline.
 
 ## Using individual modules
 
