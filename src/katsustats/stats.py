@@ -18,9 +18,9 @@ from ._dataframe import DataFrameLike, ensure_polars
 # ---------------------------------------------------------------------------
 
 
-def _to_returns(df: DataFrameLike) -> pl.Series:
+def _to_returns(df: DataFrameLike, name: str = "df") -> pl.Series:
     """Extract the pnl column as a Polars Series."""
-    df = ensure_polars(df)
+    df = ensure_polars(df, name=name)
     return df.get_column("pnl")
 
 
