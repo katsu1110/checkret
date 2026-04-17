@@ -66,6 +66,14 @@ class TestFull:
         with pytest.raises(AssertionError):
             reports.full(bad_df, show=False)
 
+    def test_positional_rf_still_supported(self, sample_df):
+        result = reports.full(sample_df, None, 0.04, show=False)
+        assert isinstance(result["metrics"], pl.DataFrame)
+
+    def test_duplicate_dates_raises(self, grouped_sample_pandas_df):
+        with pytest.raises(AssertionError):
+            reports.full(grouped_sample_pandas_df, show=False)
+
     def test_accepts_pandas_inputs(self, sample_pandas_df, benchmark_pandas_df):
         result = reports.full(
             sample_pandas_df, base_pnl=benchmark_pandas_df, show=False
@@ -120,3 +128,11 @@ class TestHtml:
         )
         with pytest.raises(AssertionError):
             reports.html(bad_df)
+
+    def test_positional_rf_still_supported(self, sample_df):
+        result = reports.html(sample_df, None, 0.04)
+        assert isinstance(result, str)
+
+    def test_duplicate_dates_raises(self, grouped_sample_pandas_df):
+        with pytest.raises(AssertionError):
+            reports.html(grouped_sample_pandas_df)
