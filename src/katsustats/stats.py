@@ -520,7 +520,6 @@ def summary_metrics_raw(
             ...
         }
     """
-    df = ensure_polars(df)
     raw = _summary_metric_values(df, rf, periods)
     if base_df is not None:
         raw.update(_comparison_metric_values(df, base_df, periods))
