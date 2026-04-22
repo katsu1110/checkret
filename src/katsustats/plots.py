@@ -480,6 +480,24 @@ def plot_returns_vs_benchmark(
     r = stats._to_returns(df).to_numpy()
     b = stats._to_returns(base_df).to_numpy()
 
+    if len(b) < 2 or len(r) < 2:
+        fig, ax = plt.subplots(figsize=figsize)
+        _apply_style(ax, fig)
+        ax.text(
+            0.5,
+            0.5,
+            "No overlapping dates",
+            transform=ax.transAxes,
+            ha="center",
+            va="center",
+            fontsize=11,
+            color=_COLORS["text_secondary"],
+        )
+        ax.set_xticks([])
+        ax.set_yticks([])
+        _add_title(ax, fig, "Returns vs Benchmark")
+        fig.tight_layout()
+        return fig
     # OLS regression: y = beta*x + alpha_daily
     beta, alpha_daily = np.polyfit(b, r, 1)
     beta = float(beta)
