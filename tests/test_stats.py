@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 
 import polars as pl
+import pytest
 
 from katsustats import stats
 
@@ -236,9 +237,9 @@ class TestTailRatio:
         assert stats.tail_ratio(sample_df) > 0
 
     def test_all_positive_finite(self, all_positive_df):
-        # Both tails are positive; ratio is finite
+        # Both tails are positive; ratio must be a finite number
         result = stats.tail_ratio(all_positive_df)
-        assert isinstance(result, float) and not math.isnan(result)
+        assert isinstance(result, float) and math.isfinite(result)
 
 
 class TestCommonSenseRatio:
@@ -274,6 +275,10 @@ class TestRiskOfRuin:
         ror_50 = stats.risk_of_ruin(sample_df, ruin_threshold=-0.5)
         ror_25 = stats.risk_of_ruin(sample_df, ruin_threshold=-0.25)
         assert ror_25 >= ror_50
+
+    def test_positive_threshold_raises(self, sample_df):
+        with pytest.raises(ValueError, match="ruin_threshold must be <= 0"):
+            stats.risk_of_ruin(sample_df, ruin_threshold=0.5)
 
 
 class TestRecoveryFactor:

@@ -184,6 +184,8 @@ def tail_ratio(df: DataFrameLike, cutoff: float = 0.95) -> float:
     lower = r.quantile(1.0 - cutoff, interpolation="linear")
     if upper is None or lower is None:
         return float("nan")
+    if upper == 0.0 and lower == 0.0:
+        return float("nan")
     if lower == 0.0:
         return float("inf")
     return float(abs(upper) / abs(lower))
@@ -197,10 +199,13 @@ def common_sense_ratio(df: DataFrameLike) -> float:
 def risk_of_ruin(df: DataFrameLike, ruin_threshold: float = -0.5) -> float:
     """Estimated probability of reaching ruin_threshold cumulative loss.
 
+    ruin_threshold must be negative (e.g. -0.5 means a 50% drawdown).
     Uses the classic formula: ((1 - edge) / (1 + edge)) ^ n_units, where
     edge = win_rate - (1 - win_rate) / payoff_ratio and n_units scales the
     threshold by the average losing return.
     """
+    if ruin_threshold > 0:
+        raise ValueError("ruin_threshold must be <= 0 (e.g. -0.5 for a 50% loss)")
     wr = win_rate(df)
     aw = avg_win(df)
     al = abs(avg_loss(df))
