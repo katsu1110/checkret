@@ -152,6 +152,39 @@ def plot_drawdown(df: DataFrameLike, figsize: tuple = (12, 4)) -> Figure:
 
 
 # ---------------------------------------------------------------------------
+# Plot: Drawdown Periods
+# ---------------------------------------------------------------------------
+
+
+def plot_drawdown_periods(
+    df: DataFrameLike, top_n: int = 5, figsize: tuple = (12, 4)
+) -> Figure:
+    """Cumulative return chart with top-N drawdown periods shaded."""
+    df = ensure_polars(df)
+    r = stats._to_returns(df)
+    cumval = stats._cumulative_value(r).to_numpy()
+    dates = df.get_column("date").to_numpy()
+    dd_details = stats.drawdown_details(df, top_n=top_n)
+
+    fig, ax = plt.subplots(figsize=figsize)
+    _apply_style(ax, fig)
+
+    ax.plot(dates, cumval, lw=1.2, color=_COLORS["strategy"])
+
+    for row in dd_details.iter_rows(named=True):
+        start = row["start"]
+        recovery = row["recovery"]
+        end = recovery if recovery is not None else dates[-1]
+        ax.axvspan(start, end, alpha=0.2, color=_COLORS["negative"], lw=0)
+
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
+    _add_title(ax, fig, "Drawdown Periods")
+    fig.autofmt_xdate()
+    fig.tight_layout()
+    return fig
+
+
+# ---------------------------------------------------------------------------
 # Plot: Monthly Heatmap
 # ---------------------------------------------------------------------------
 
@@ -463,56 +496,94 @@ def plot_rolling_volatility(
 
 
 # ---------------------------------------------------------------------------
-# Plot: Drawdown Periods (Equity Curve with Shaded Drawdown Windows)
+# Plot: Returns vs Benchmark (Scatter + Regression)
 # ---------------------------------------------------------------------------
 
 
-def plot_drawdown_periods(
+def plot_returns_vs_benchmark(
     df: DataFrameLike,
-    top_n: int = 5,
-    figsize: tuple = (12, 5),
+    base_df: DataFrameLike,
+    figsize: tuple = (7, 7),
 ) -> Figure:
-    """Equity curve with top-N drawdown windows shaded."""
+    """Scatter plot of strategy daily returns (y) vs benchmark daily returns (x) with regression line."""
     df = ensure_polars(df)
-    r = stats._to_returns(df)
-    cumval = stats._cumulative(r)
-    dates = df.get_column("date").to_numpy()
+    base_df = ensure_polars(base_df, name="base_df")
+    df, base_df = _align_to_common_dates(df, base_df)
 
-    dd_df = stats.drawdown_details(df, top_n=top_n)
+    r = stats._to_returns(df).to_numpy()
+    b = stats._to_returns(base_df).to_numpy()
+
+    if len(b) < 2 or len(r) < 2:
+        fig, ax = plt.subplots(figsize=figsize)
+        _apply_style(ax, fig)
+        ax.text(
+            0.5,
+            0.5,
+            "No overlapping dates",
+            transform=ax.transAxes,
+            ha="center",
+            va="center",
+            fontsize=11,
+            color=_COLORS["text_secondary"],
+        )
+        ax.set_xticks([])
+        ax.set_yticks([])
+        _add_title(ax, fig, "Returns vs Benchmark")
+        fig.tight_layout()
+        return fig
+    # OLS regression: y = beta*x + alpha_daily
+    beta, alpha_daily = np.polyfit(b, r, 1)
+    beta = float(beta)
+    alpha_daily = float(alpha_daily)
+
+    # R²
+    mean_r = float(np.mean(r))
+    r_pred = beta * b + alpha_daily
+    ss_res = float(np.sum((r - r_pred) ** 2))
+    ss_tot = float(np.sum((r - mean_r) ** 2))
+    r_squared = 1.0 - ss_res / ss_tot if ss_tot != 0 else 0.0
 
     fig, ax = plt.subplots(figsize=figsize)
     _apply_style(ax, fig)
 
-    ax.fill_between(dates, 0, cumval.to_numpy(), alpha=0.15, color=_COLORS["strategy"])
-    ax.plot(dates, cumval.to_numpy(), lw=1.8, color=_COLORS["strategy"])
+    # Scatter points
+    ax.scatter(b, r, color=_COLORS["neutral"], alpha=0.6, s=18, linewidths=0)
 
-    last_date = df.get_column("date")[-1] if df.height > 0 else None
-    for row in dd_df.iter_rows(named=True):
-        peak = row["start"]
-        recovery = row["recovery"]
-        if recovery is not None:
-            end = recovery
-        elif last_date is not None:
-            end = last_date
-        else:
-            continue
-        ax.axvspan(peak, end, alpha=0.15, color=_COLORS["negative"])
-        mid = peak + (end - peak) / 2
-        ax.text(
-            mid,
-            0.98,
-            f"{row['max_dd']:.1%}",
-            ha="center",
-            va="top",
-            fontsize=8,
-            color=_COLORS["negative"],
-            transform=ax.get_xaxis_transform(),
-        )
+    # Regression line
+    x_line = np.array([b.min(), b.max()])
+    ax.plot(x_line, beta * x_line + alpha_daily, color=_COLORS["strategy"], lw=1.8)
 
-    ax.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
+    # Zero reference lines
     ax.axhline(0, color=_COLORS["neutral"], lw=0.8, ls="--")
-    _add_title(ax, fig, f"Drawdown Periods (Top {top_n})")
-    fig.autofmt_xdate()
+    ax.axvline(0, color=_COLORS["neutral"], lw=0.8, ls="--")
+
+    # Annotation
+    sign = "+" if alpha_daily >= 0 else ""
+    annotation = (
+        f"α = {sign}{alpha_daily:.4%}/day\nβ = {beta:.2f}\nR² = {r_squared:.2f}"
+    )
+    ax.text(
+        0.05,
+        0.95,
+        annotation,
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        fontsize=9,
+        color=_COLORS["text"],
+        bbox={
+            "boxstyle": "round,pad=0.3",
+            "facecolor": "white",
+            "alpha": 0.7,
+            "edgecolor": _COLORS["grid"],
+        },
+    )
+
+    ax.xaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
+    ax.set_xlabel("Benchmark Return", fontsize=10, color=_COLORS["text_secondary"])
+    ax.set_ylabel("Strategy Return", fontsize=10, color=_COLORS["text_secondary"])
+    _add_title(ax, fig, "Returns vs Benchmark")
     fig.tight_layout()
     return fig
 
