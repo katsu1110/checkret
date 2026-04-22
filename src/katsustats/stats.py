@@ -245,6 +245,92 @@ def kurtosis(df: DataFrameLike) -> float:
 
 
 # ---------------------------------------------------------------------------
+# Streaks, Period Extrema & Exposure
+# ---------------------------------------------------------------------------
+
+
+def _longest_streak(r: pl.Series, positive: bool) -> int:
+    """Return the longest run of positive (positive=True) or negative values."""
+    best = 0
+    current = 0
+    for v in r.to_list():
+        if v is not None and (v > 0 if positive else v < 0):
+            current += 1
+            if current > best:
+                best = current
+        else:
+            current = 0
+    return best
+
+
+def _period_returns(df: pl.DataFrame, every: str) -> pl.Series:
+    """Compounded returns aggregated by calendar period ('1mo' or '1y')."""
+    return (
+        df.sort("date")
+        .group_by_dynamic("date", every=every)
+        .agg((pl.col("pnl") + 1).product() - 1)
+        .get_column("pnl")
+    )
+
+
+def consecutive_wins(df: DataFrameLike) -> int:
+    """Longest streak of consecutive positive daily returns."""
+    r = _to_returns(df)
+    if r.len() == 0:
+        return 0
+    return _longest_streak(r, positive=True)
+
+
+def consecutive_losses(df: DataFrameLike) -> int:
+    """Longest streak of consecutive negative daily returns."""
+    r = _to_returns(df)
+    if r.len() == 0:
+        return 0
+    return _longest_streak(r, positive=False)
+
+
+def best_month(df: DataFrameLike) -> float:
+    """Compounded return of the best calendar month."""
+    df = ensure_polars(df)
+    if df.height == 0:
+        return float("nan")
+    return float(_period_returns(df, "1mo").max())
+
+
+def worst_month(df: DataFrameLike) -> float:
+    """Compounded return of the worst calendar month."""
+    df = ensure_polars(df)
+    if df.height == 0:
+        return float("nan")
+    return float(_period_returns(df, "1mo").min())
+
+
+def best_year(df: DataFrameLike) -> float:
+    """Compounded return of the best calendar year."""
+    df = ensure_polars(df)
+    if df.height == 0:
+        return float("nan")
+    return float(_period_returns(df, "1y").max())
+
+
+def worst_year(df: DataFrameLike) -> float:
+    """Compounded return of the worst calendar year."""
+    df = ensure_polars(df)
+    if df.height == 0:
+        return float("nan")
+    return float(_period_returns(df, "1y").min())
+
+
+def exposure(df: DataFrameLike) -> float:
+    """Fraction of days with non-zero pnl (active market exposure)."""
+    r = _to_returns(df)
+    n = r.len()
+    if n == 0:
+        return float("nan")
+    return float((r != 0).sum() / n)
+
+
+# ---------------------------------------------------------------------------
 # Drawdown Analysis
 # ---------------------------------------------------------------------------
 
