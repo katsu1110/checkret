@@ -72,7 +72,10 @@ def sharpe(df: DataFrameLike, rf: float = 0.0, periods: int = 252) -> float:
     r = _to_returns(df)
     rf_per_period = rf / periods
     excess = r - rf_per_period
-    std = float(excess.std())
+    std = excess.std()
+    if std is None:
+        return float("nan")
+    std = float(std)
     if std == 0:
         return 0.0
     return float(excess.mean() / std * np.sqrt(periods))
@@ -355,7 +358,7 @@ def regime_stats(
     )
 
     vol_median = base_features.get_column("_rolling_vol").median()
-    if vol_median is None:
+    if vol_median is None or np.isnan(vol_median):
         aligned = df.head(0).with_columns(pl.Series("regime", [], dtype=pl.String))
     else:
         base_regimes = (
@@ -405,9 +408,7 @@ def regime_stats(
                 "regime": regime,
                 "n_days": n_days,
                 "cagr": cagr(subset, periods),
-                "sharpe": float("nan")
-                if n_days < 2
-                else sharpe(subset, periods=periods),
+                "sharpe": sharpe(subset, periods=periods),
                 "max_drawdown": max_drawdown(subset),
                 "win_rate": win_rate(subset),
             }

@@ -65,6 +65,9 @@ class TestSharpe:
     def test_returns_float(self, sample_df):
         assert isinstance(stats.sharpe(sample_df), float)
 
+    def test_single_row_returns_nan(self, single_row_df):
+        assert math.isnan(stats.sharpe(single_row_df))
+
     def test_zero_std_returns_zero(self):
         # All identical returns → std=0 → sharpe=0
         df = pl.DataFrame(
