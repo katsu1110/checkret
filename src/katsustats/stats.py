@@ -427,7 +427,14 @@ _COMPARISON_METRIC_SPECS = [
 def _summary_metric_values(
     df: DataFrameLike, rf: float = 0.0, periods: int = 252
 ) -> dict[str, float]:
-    """Compute the raw numeric summary metrics for a single return series."""
+    """
+    Compute the raw numeric summary metrics for a single return series.
+
+    Returned keys:
+        total_return, cagr, sharpe, sortino, max_drawdown, calmar,
+        volatility, win_rate, profit_factor, best_day, worst_day,
+        avg_win, avg_loss, value_at_risk, recovery_factor, skewness, kurtosis
+    """
     df = ensure_polars(df)
     return {
         "total_return": float(total_return(df)),
@@ -453,7 +460,12 @@ def _summary_metric_values(
 def _comparison_metric_values(
     df: DataFrameLike, base_df: DataFrameLike, periods: int = 252
 ) -> dict[str, float]:
-    """Compute raw numeric metrics that compare a strategy to a benchmark."""
+    """
+    Compute raw numeric metrics that compare a strategy to a benchmark.
+
+    Returned keys:
+        alpha, beta, correlation, information_ratio, excess_return
+    """
     df = ensure_polars(df)
     base_df = ensure_polars(base_df, name="base_df")
     a, b = alpha_beta(df, base_df, periods)
@@ -479,7 +491,35 @@ def summary_metrics_raw(
     rf: float = 0.0,
     periods: int = 252,
 ) -> dict[str, float]:
-    """Return summary metrics as raw numeric values."""
+    """
+    Return summary metrics as raw numeric values.
+
+    Args:
+        df: Polars or pandas DataFrame with ["date", "pnl"] columns.
+        base_df: Optional benchmark DataFrame with the same schema. When
+            provided, comparison metrics are added to the returned dict.
+        rf: Annualized risk-free rate used by risk-adjusted metrics.
+        periods: Number of return periods per year.
+
+    Returns:
+        A dict[str, float] with these base keys:
+            total_return, cagr, sharpe, sortino, max_drawdown, calmar,
+            volatility, win_rate, profit_factor, best_day, worst_day,
+            avg_win, avg_loss, value_at_risk, recovery_factor, skewness,
+            kurtosis
+
+        When base_df is provided, these additional keys are included:
+            alpha, beta, correlation, information_ratio, excess_return
+
+    Example:
+        {
+            "total_return": 0.131,
+            "cagr": 0.127,
+            "sharpe": 1.42,
+            "max_drawdown": -0.187,
+            ...
+        }
+    """
     df = ensure_polars(df)
     raw = _summary_metric_values(df, rf, periods)
     if base_df is not None:
