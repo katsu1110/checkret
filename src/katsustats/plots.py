@@ -152,6 +152,39 @@ def plot_drawdown(df: DataFrameLike, figsize: tuple = (12, 4)) -> Figure:
 
 
 # ---------------------------------------------------------------------------
+# Plot: Drawdown Periods
+# ---------------------------------------------------------------------------
+
+
+def plot_drawdown_periods(
+    df: DataFrameLike, top_n: int = 5, figsize: tuple = (12, 4)
+) -> Figure:
+    """Cumulative return chart with top-N drawdown periods shaded."""
+    df = ensure_polars(df)
+    r = stats._to_returns(df)
+    cumval = stats._cumulative_value(r).to_numpy()
+    dates = df.get_column("date").to_numpy()
+    dd_details = stats.drawdown_details(df, top_n=top_n)
+
+    fig, ax = plt.subplots(figsize=figsize)
+    _apply_style(ax, fig)
+
+    ax.plot(dates, cumval, lw=1.2, color=_COLORS["strategy"])
+
+    for row in dd_details.iter_rows(named=True):
+        start = row["start"]
+        recovery = row["recovery"]
+        end = recovery if recovery is not None else dates[-1]
+        ax.axvspan(start, end, alpha=0.2, color=_COLORS["negative"], lw=0)
+
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
+    _add_title(ax, fig, "Drawdown Periods")
+    fig.autofmt_xdate()
+    fig.tight_layout()
+    return fig
+
+
+# ---------------------------------------------------------------------------
 # Plot: Monthly Heatmap
 # ---------------------------------------------------------------------------
 
