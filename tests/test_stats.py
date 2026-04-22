@@ -431,7 +431,9 @@ class TestExcessReturn:
 
 class TestRegimeStats:
     def test_returns_dataframe_with_expected_schema(self, sample_df, benchmark_df):
-        result = stats.regime_stats(sample_df, benchmark_df, trend_window=3, vol_window=3)
+        result = stats.regime_stats(
+            sample_df, benchmark_df, trend_window=3, vol_window=3
+        )
         assert result.schema == {
             "regime": pl.String,
             "n_days": pl.Int64,
@@ -449,7 +451,9 @@ class TestRegimeStats:
         ]
 
     def test_requires_benchmark(self, sample_df):
-        with pytest.raises(AssertionError, match="base_df is required for regime_stats"):
+        with pytest.raises(
+            AssertionError, match="base_df is required for regime_stats"
+        ):
             stats.regime_stats(sample_df, None)
 
     def test_large_windows_leave_short_series_with_nan_metrics(
@@ -460,8 +464,12 @@ class TestRegimeStats:
         for col in ["cagr", "sharpe", "max_drawdown", "win_rate"]:
             assert all(math.isnan(value) for value in result.get_column(col).to_list())
 
-    def test_window_kwargs_change_regime_assignment_counts(self, sample_df, benchmark_df):
-        small = stats.regime_stats(sample_df, benchmark_df, trend_window=3, vol_window=3)
+    def test_window_kwargs_change_regime_assignment_counts(
+        self, sample_df, benchmark_df
+    ):
+        small = stats.regime_stats(
+            sample_df, benchmark_df, trend_window=3, vol_window=3
+        )
         large = stats.regime_stats(
             sample_df, benchmark_df, trend_window=10, vol_window=10
         )

@@ -347,14 +347,11 @@ def regime_stats(
         "base_df must have one row per date"
     )
 
-    base_features = (
-        base_df.with_columns(
-            ((pl.col("pnl") + 1).cum_prod() - 1).alias("_cumret"),
-            pl.col("pnl").rolling_std(window_size=vol_window, ddof=1).alias(
-                "_rolling_vol"
-            ),
-        )
-        .with_columns(pl.col("_cumret").rolling_mean(window_size=trend_window).alias("_trend_ma"))
+    base_features = base_df.with_columns(
+        ((pl.col("pnl") + 1).cum_prod() - 1).alias("_cumret"),
+        pl.col("pnl").rolling_std(window_size=vol_window, ddof=1).alias("_rolling_vol"),
+    ).with_columns(
+        pl.col("_cumret").rolling_mean(window_size=trend_window).alias("_trend_ma")
     )
 
     vol_median = base_features.get_column("_rolling_vol").median()
@@ -408,7 +405,9 @@ def regime_stats(
                 "regime": regime,
                 "n_days": n_days,
                 "cagr": cagr(subset, periods),
-                "sharpe": float("nan") if n_days < 2 else sharpe(subset, periods=periods),
+                "sharpe": float("nan")
+                if n_days < 2
+                else sharpe(subset, periods=periods),
                 "max_drawdown": max_drawdown(subset),
                 "win_rate": win_rate(subset),
             }
