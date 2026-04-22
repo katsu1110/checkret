@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 
 import polars as pl
+import pytest
 
 from katsustats import stats
 
@@ -63,6 +64,9 @@ class TestVolatility:
 class TestSharpe:
     def test_returns_float(self, sample_df):
         assert isinstance(stats.sharpe(sample_df), float)
+
+    def test_single_row_returns_nan(self, single_row_df):
+        assert math.isnan(stats.sharpe(single_row_df))
 
     def test_zero_std_returns_zero(self):
         # All identical returns → std=0 → sharpe=0
@@ -208,6 +212,76 @@ class TestVaR:
         var10 = stats.value_at_risk(sample_df, alpha=0.10)
         # Higher alpha → less extreme quantile → higher (less negative) VaR
         assert var10 >= var5
+
+
+class TestCVaR:
+    def test_returns_float(self, sample_df):
+        assert isinstance(stats.cvar(sample_df), float)
+
+    def test_cvar_worse_than_var(self, sample_df):
+        # CVaR is always at most as good as VaR (mean of tail ≤ threshold)
+        assert stats.cvar(sample_df) <= stats.value_at_risk(sample_df)
+
+    def test_negative_for_mixed_returns(self, sample_df):
+        assert stats.cvar(sample_df) < 0
+
+    def test_empty_df_returns_nan(self, empty_df):
+        assert math.isnan(stats.cvar(empty_df))
+
+    def test_all_negative_returns_negative(self, all_negative_df):
+        assert stats.cvar(all_negative_df) < 0
+
+
+class TestTailRatio:
+    def test_returns_float(self, sample_df):
+        assert isinstance(stats.tail_ratio(sample_df), float)
+
+    def test_positive(self, sample_df):
+        assert stats.tail_ratio(sample_df) > 0
+
+    def test_all_positive_finite(self, all_positive_df):
+        # Both tails are positive; ratio must be a finite number
+        result = stats.tail_ratio(all_positive_df)
+        assert isinstance(result, float) and math.isfinite(result)
+
+
+class TestCommonSenseRatio:
+    def test_returns_float(self, sample_df):
+        assert isinstance(stats.common_sense_ratio(sample_df), float)
+
+    def test_equals_pf_times_tr(self, sample_df):
+        expected = stats.profit_factor(sample_df) * stats.tail_ratio(sample_df)
+        assert abs(stats.common_sense_ratio(sample_df) - expected) < 1e-10
+
+    def test_positive(self, sample_df):
+        assert stats.common_sense_ratio(sample_df) > 0
+
+
+class TestRiskOfRuin:
+    def test_returns_float(self, sample_df):
+        assert isinstance(stats.risk_of_ruin(sample_df), float)
+
+    def test_in_unit_interval(self, sample_df):
+        ror = stats.risk_of_ruin(sample_df)
+        assert 0.0 <= ror <= 1.0
+
+    def test_all_positive_returns_zero(self, all_positive_df):
+        # No losing days — ruin impossible
+        assert stats.risk_of_ruin(all_positive_df) == 0.0
+
+    def test_all_negative_returns_one(self, all_negative_df):
+        # No winning days — ruin certain
+        assert stats.risk_of_ruin(all_negative_df) == 1.0
+
+    def test_ruin_threshold_parameter(self, sample_df):
+        # Larger loss threshold → harder to reach → lower RoR
+        ror_50 = stats.risk_of_ruin(sample_df, ruin_threshold=-0.5)
+        ror_25 = stats.risk_of_ruin(sample_df, ruin_threshold=-0.25)
+        assert ror_25 >= ror_50
+
+    def test_positive_threshold_raises(self, sample_df):
+        with pytest.raises(ValueError, match="ruin_threshold must be <= 0"):
+            stats.risk_of_ruin(sample_df, ruin_threshold=0.5)
 
 
 class TestRecoveryFactor:
@@ -421,6 +495,75 @@ class TestExcessReturn:
         # Benchmark  total on those dates: (1.01 * 1.02) - 1 ≈ 0.0302
         # Excess return should be ≈ 0
         assert abs(stats.excess_return(df, base)) < 1e-10
+
+
+# ---------------------------------------------------------------------------
+# Regime analysis
+# ---------------------------------------------------------------------------
+
+
+class TestRegimeStats:
+    def test_returns_dataframe_with_expected_schema(self, sample_df, benchmark_df):
+        result = stats.regime_stats(
+            sample_df, benchmark_df, trend_window=3, vol_window=3
+        )
+        assert result.schema == {
+            "regime": pl.String,
+            "n_days": pl.Int64,
+            "cagr": pl.Float64,
+            "sharpe": pl.Float64,
+            "max_drawdown": pl.Float64,
+            "win_rate": pl.Float64,
+        }
+        assert result.height == 4
+        assert result.get_column("regime").to_list() == [
+            "bull_low_vol",
+            "bull_high_vol",
+            "bear_low_vol",
+            "bear_high_vol",
+        ]
+
+    def test_requires_benchmark(self, sample_df):
+        with pytest.raises(
+            AssertionError, match="base_df is required for regime_stats"
+        ):
+            stats.regime_stats(sample_df, None)
+
+    def test_large_windows_leave_short_series_with_nan_metrics(
+        self, sample_df, benchmark_df
+    ):
+        result = stats.regime_stats(sample_df, benchmark_df)
+        assert result.get_column("n_days").to_list() == [0, 0, 0, 0]
+        for col in ["cagr", "sharpe", "max_drawdown", "win_rate"]:
+            assert all(math.isnan(value) for value in result.get_column(col).to_list())
+
+    def test_window_kwargs_change_regime_assignment_counts(
+        self, sample_df, benchmark_df
+    ):
+        small = stats.regime_stats(
+            sample_df, benchmark_df, trend_window=3, vol_window=3
+        )
+        large = stats.regime_stats(
+            sample_df, benchmark_df, trend_window=10, vol_window=10
+        )
+        assert small.get_column("n_days").sum() > large.get_column("n_days").sum()
+
+    def test_uses_inner_join_on_benchmark_dates(self):
+        df = pl.DataFrame(
+            {
+                "date": ["2023-01-02", "2023-01-03", "2023-01-04", "2023-01-05"],
+                "pnl": [0.01, -0.01, 0.02, -0.02],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+        base = pl.DataFrame(
+            {
+                "date": ["2023-01-03", "2023-01-04", "2023-01-05"],
+                "pnl": [0.01, -0.03, 0.04],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+
+        result = stats.regime_stats(df, base, trend_window=2, vol_window=2)
+        assert result.get_column("n_days").sum() == 2
 
 
 # ---------------------------------------------------------------------------

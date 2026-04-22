@@ -72,7 +72,10 @@ def sharpe(df: DataFrameLike, rf: float = 0.0, periods: int = 252) -> float:
     r = _to_returns(df)
     rf_per_period = rf / periods
     excess = r - rf_per_period
-    std = float(excess.std())
+    std = excess.std()
+    if std is None:
+        return float("nan")
+    std = float(std)
     if std == 0:
         return 0.0
     return float(excess.mean() / std * np.sqrt(periods))
@@ -158,6 +161,67 @@ def value_at_risk(df: DataFrameLike, alpha: float = 0.05) -> float:
     """Daily Value at Risk at the given confidence level."""
     r = _to_returns(df)
     return float(r.quantile(alpha, interpolation="linear"))
+
+
+def cvar(df: DataFrameLike, alpha: float = 0.05) -> float:
+    """CVaR / Expected Shortfall: mean of returns at or below the VaR threshold."""
+    r = _to_returns(df)
+    if r.len() == 0:
+        return float("nan")
+    threshold = r.quantile(alpha, interpolation="linear")
+    if threshold is None:
+        return float("nan")
+    tail = r.filter(r <= threshold)
+    if tail.len() == 0:
+        return float("nan")
+    return float(tail.mean())
+
+
+def tail_ratio(df: DataFrameLike, cutoff: float = 0.95) -> float:
+    """Upper-tail / lower-tail magnitude: |q_cutoff| / |q_{1-cutoff}|.
+
+    Values > 1 indicate a fatter right tail; < 1 indicate a fatter left tail.
+    """
+    r = _to_returns(df)
+    upper = r.quantile(cutoff, interpolation="linear")
+    lower = r.quantile(1.0 - cutoff, interpolation="linear")
+    if upper is None or lower is None:
+        return float("nan")
+    if upper == 0.0 and lower == 0.0:
+        return float("nan")
+    if lower == 0.0:
+        return float("inf")
+    return float(abs(upper) / abs(lower))
+
+
+def common_sense_ratio(df: DataFrameLike) -> float:
+    """Profit factor × tail ratio — combines consistency with tail asymmetry."""
+    return float(profit_factor(df) * tail_ratio(df))
+
+
+def risk_of_ruin(df: DataFrameLike, ruin_threshold: float = -0.5) -> float:
+    """Estimated probability of reaching ruin_threshold cumulative loss.
+
+    ruin_threshold must be negative (e.g. -0.5 means a 50% drawdown).
+    Uses the classic formula: ((1 - edge) / (1 + edge)) ^ n_units, where
+    edge = win_rate - (1 - win_rate) / payoff_ratio and n_units scales the
+    threshold by the average losing return.
+    """
+    if ruin_threshold > 0:
+        raise ValueError("ruin_threshold must be <= 0 (e.g. -0.5 for a 50% loss)")
+    wr = win_rate(df)
+    aw = avg_win(df)
+    al = abs(avg_loss(df))
+    if al == 0.0:
+        return 0.0  # no losing days — ruin impossible
+    if aw == 0.0:
+        return 1.0  # no winning days — ruin certain
+    pr = aw / al
+    edge = wr - (1.0 - wr) / pr
+    if edge <= 0.0:
+        return 1.0
+    n_units = abs(ruin_threshold) / al
+    return float(((1.0 - edge) / (1.0 + edge)) ** n_units)
 
 
 def recovery_factor(df: DataFrameLike) -> float:
@@ -309,6 +373,118 @@ def excess_return(df: DataFrameLike, base_df: DataFrameLike) -> float:
     strat_ret = float((joined.get_column("pnl") + 1).product() - 1)
     bench_ret = float((joined.get_column("_base_pnl") + 1).product() - 1)
     return strat_ret - bench_ret
+
+
+# ---------------------------------------------------------------------------
+# Regime Analysis
+# ---------------------------------------------------------------------------
+
+
+def regime_stats(
+    df: DataFrameLike,
+    base_df: DataFrameLike | None,
+    periods: int = 252,
+    trend_window: int = 200,
+    vol_window: int = 60,
+) -> pl.DataFrame:
+    """
+    Break down strategy performance by benchmark-defined market regime.
+
+    Returns one row for each of:
+        bull_low_vol, bull_high_vol, bear_low_vol, bear_high_vol
+    """
+    assert base_df is not None, "base_df is required for regime_stats"
+    assert trend_window > 0, "trend_window must be positive"
+    assert vol_window > 0, "vol_window must be positive"
+
+    df = ensure_polars(df, name="df")
+    base_df = ensure_polars(base_df, name="base_df")
+    assert "date" in df.columns, "df must have a 'date' column"
+    assert "pnl" in df.columns, "df must have a 'pnl' column"
+    assert "date" in base_df.columns, "base_df must have a 'date' column"
+    assert "pnl" in base_df.columns, "base_df must have a 'pnl' column"
+
+    df = df.sort("date")
+    base_df = base_df.sort("date")
+    assert df["date"].n_unique() == df.height, "df must have one row per date"
+    assert base_df["date"].n_unique() == base_df.height, (
+        "base_df must have one row per date"
+    )
+
+    base_features = base_df.with_columns(
+        ((pl.col("pnl") + 1).cum_prod() - 1).alias("_cumret"),
+        pl.col("pnl").rolling_std(window_size=vol_window, ddof=1).alias("_rolling_vol"),
+    ).with_columns(
+        pl.col("_cumret").rolling_mean(window_size=trend_window).alias("_trend_ma")
+    )
+
+    vol_median = base_features.get_column("_rolling_vol").median()
+    if vol_median is None or np.isnan(vol_median):
+        aligned = df.head(0).with_columns(pl.Series("regime", [], dtype=pl.String))
+    else:
+        base_regimes = (
+            base_features.drop_nulls(["_trend_ma", "_rolling_vol"])
+            .with_columns(
+                pl.when(pl.col("_cumret") > pl.col("_trend_ma"))
+                .then(pl.lit("bull"))
+                .otherwise(pl.lit("bear"))
+                .alias("_trend"),
+                pl.when(pl.col("_rolling_vol") > float(vol_median))
+                .then(pl.lit("high_vol"))
+                .otherwise(pl.lit("low_vol"))
+                .alias("_vol_regime"),
+            )
+            .with_columns(
+                pl.concat_str(["_trend", "_vol_regime"], separator="_").alias("regime")
+            )
+            .select(["date", "regime"])
+        )
+        aligned = df.join(base_regimes, on="date", how="inner")
+
+    regimes = [
+        "bull_low_vol",
+        "bull_high_vol",
+        "bear_low_vol",
+        "bear_high_vol",
+    ]
+    rows: list[dict[str, float | int | str]] = []
+    for regime in regimes:
+        subset = aligned.filter(pl.col("regime") == regime).select(["date", "pnl"])
+        n_days = subset.height
+        if n_days == 0:
+            rows.append(
+                {
+                    "regime": regime,
+                    "n_days": 0,
+                    "cagr": float("nan"),
+                    "sharpe": float("nan"),
+                    "max_drawdown": float("nan"),
+                    "win_rate": float("nan"),
+                }
+            )
+            continue
+
+        rows.append(
+            {
+                "regime": regime,
+                "n_days": n_days,
+                "cagr": cagr(subset, periods),
+                "sharpe": sharpe(subset, periods=periods),
+                "max_drawdown": max_drawdown(subset),
+                "win_rate": win_rate(subset),
+            }
+        )
+
+    return pl.DataFrame(rows).cast(
+        {
+            "regime": pl.String,
+            "n_days": pl.Int64,
+            "cagr": pl.Float64,
+            "sharpe": pl.Float64,
+            "max_drawdown": pl.Float64,
+            "win_rate": pl.Float64,
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
