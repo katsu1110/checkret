@@ -356,7 +356,7 @@ def regime_stats(
 
     vol_median = base_features.get_column("_rolling_vol").median()
     if vol_median is None:
-        aligned = df.head(0).with_columns(pl.Series("regime", [], dtype=pl.Utf8))
+        aligned = df.head(0).with_columns(pl.Series("regime", [], dtype=pl.String))
     else:
         base_regimes = (
             base_features.drop_nulls(["_trend_ma", "_rolling_vol"])
@@ -415,7 +415,7 @@ def regime_stats(
 
     return pl.DataFrame(rows).cast(
         {
-            "regime": pl.Utf8,
+            "regime": pl.String,
             "n_days": pl.Int64,
             "cagr": pl.Float64,
             "sharpe": pl.Float64,
