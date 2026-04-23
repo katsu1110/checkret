@@ -106,6 +106,52 @@ class TestPlotYearlyReturns:
 
 
 # ---------------------------------------------------------------------------
+# plot_eoy_returns
+# ---------------------------------------------------------------------------
+
+
+class TestPlotEoyReturns:
+    def test_returns_figure(self, sample_df):
+        fig = plots.plot_eoy_returns(sample_df)
+        assert isinstance(fig, Figure)
+
+    def test_with_benchmark(self, sample_df, benchmark_df):
+        fig = plots.plot_eoy_returns(sample_df, base_df=benchmark_df)
+        assert isinstance(fig, Figure)
+
+    def test_bar_count_equals_years(self):
+        """Number of bars equals number of years in the data."""
+        import datetime
+
+        dates = [
+            datetime.date(2021, 6, 1),
+            datetime.date(2022, 6, 1),
+            datetime.date(2023, 6, 1),
+        ]
+        df = pl.DataFrame({"date": dates, "pnl": [0.05, -0.03, 0.08]}).with_columns(
+            pl.col("date").cast(pl.Date)
+        )
+        fig = plots.plot_eoy_returns(df)
+        ax = fig.axes[0]
+        assert len(ax.patches) == 3  # 3 years → 3 bars
+
+    def test_compounded_returns(self):
+        """Bar values equal compounded annual returns, not arithmetic sum."""
+        import datetime
+
+        # Two rows in the same year: compounded = 1.1 * 1.1 - 1 = 0.21, not 0.20
+        dates = [datetime.date(2023, 1, 2), datetime.date(2023, 6, 1)]
+        df = pl.DataFrame({"date": dates, "pnl": [0.1, 0.1]}).with_columns(
+            pl.col("date").cast(pl.Date)
+        )
+        fig = plots.plot_eoy_returns(df)
+        ax = fig.axes[0]
+        bar_height = ax.patches[0].get_height()
+        expected = 1.1 * 1.1 - 1  # 0.21
+        assert abs(bar_height - expected) < 1e-9
+
+
+# ---------------------------------------------------------------------------
 # plot_return_distribution
 # ---------------------------------------------------------------------------
 
