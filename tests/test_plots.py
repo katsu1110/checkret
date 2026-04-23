@@ -150,6 +150,41 @@ class TestPlotEoyReturns:
         expected = 1.1 * 1.1 - 1  # 0.21
         assert abs(bar_height - expected) < 1e-9
 
+    def test_with_benchmark_drops_non_overlapping_years(self):
+        """Only intersecting years should be plotted when a benchmark is provided."""
+        import datetime
+
+        df = pl.DataFrame(
+            {
+                "date": [
+                    datetime.date(2020, 6, 1),
+                    datetime.date(2021, 6, 1),
+                    datetime.date(2023, 6, 1),
+                ],
+                "pnl": [0.05, 0.02, 0.08],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+
+        base_df = pl.DataFrame(
+            {
+                "date": [
+                    datetime.date(2021, 6, 1),
+                    datetime.date(2022, 6, 1),
+                    datetime.date(2023, 6, 1),
+                ],
+                "pnl": [0.01, -0.02, 0.03],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+
+        fig = plots.plot_eoy_returns(df, base_df=base_df)
+        ax = fig.axes[0]
+
+        tick_labels = [t.get_text() for t in ax.get_xticklabels() if t.get_text()]
+        assert tick_labels == ["2021", "2023"]
+        assert "2020" not in tick_labels
+        assert "2022" not in tick_labels
+        assert len(ax.patches) == 4  # 2 intersecting years × 2 bar series
+
 
 # ---------------------------------------------------------------------------
 # plot_return_distribution
