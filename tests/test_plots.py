@@ -94,6 +94,17 @@ class TestPlotLogEquity:
         fig = plots.plot_log_equity(sample_df, base_df=offset_bench)
         assert isinstance(fig, Figure)
 
+    def test_non_positive_cumval_raises(self):
+        """Regression: returns <= -1 produce non-positive cumulative values."""
+        bad_df = pl.DataFrame(
+            {
+                "date": ["2023-01-02", "2023-01-03"],
+                "pnl": [-1.0, 0.01],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+        with pytest.raises(ValueError, match="positive"):
+            plots.plot_log_equity(bad_df)
+
 
 # ---------------------------------------------------------------------------
 # plot_drawdown

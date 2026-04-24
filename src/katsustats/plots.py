@@ -145,6 +145,11 @@ def plot_log_equity(
         df, base_df = _align_to_common_dates(df, base_df)
     r = stats._to_returns(df)
     cumval = stats._cumulative_value(r).to_numpy()
+    if float(cumval.min()) <= 0:
+        raise ValueError(
+            "plot_log_equity requires all cumulative values to be positive. "
+            "A return <= -1 drives the cumulative product to zero or negative."
+        )
     dates = df.get_column("date").to_numpy()
 
     fig, ax = plt.subplots(figsize=figsize)
