@@ -352,44 +352,53 @@ def full(
     # ── 4. Plots ────────────────────────────────────────────────────
     figures: dict[str, plt.Figure] = {}
 
-    def _handle_fig(name: str, fg: plt.Figure) -> None:
-        figures[name] = fg
-        if show:
-            fg.show()
-        else:
-            plt.close(fg)
-
     # Cumulative Returns
     fig = plots.plot_cumulative_returns(pnl, base_pnl, figsize=figsize_main)
-    _handle_fig("cumulative_returns", fig)
+    figures["cumulative_returns"] = fig
+    if show:
+        fig.show()
 
     # Drawdown
     fig = plots.plot_drawdown(pnl, figsize=figsize_small)
-    _handle_fig("drawdown", fig)
+    figures["drawdown"] = fig
+    if show:
+        fig.show()
 
     # Monthly Heatmap
     fig = plots.plot_monthly_heatmap(pnl, figsize=figsize_main)
-    _handle_fig("monthly_heatmap", fig)
+    figures["monthly_heatmap"] = fig
+    if show:
+        fig.show()
 
     # Yearly Returns
     fig = plots.plot_yearly_returns(pnl, base_pnl, figsize=figsize_main)
-    _handle_fig("yearly_returns", fig)
+    figures["yearly_returns"] = fig
+    if show:
+        fig.show()
 
     # Return Distribution
     fig = plots.plot_return_distribution(pnl, base_pnl, figsize=figsize_main)
-    _handle_fig("distribution", fig)
+    figures["distribution"] = fig
+    if show:
+        fig.show()
 
     # Rolling Sharpe
     fig = plots.plot_rolling_sharpe(pnl, base_pnl, figsize=figsize_small)
-    _handle_fig("rolling_sharpe", fig)
+    figures["rolling_sharpe"] = fig
+    if show:
+        fig.show()
 
     # Rolling Volatility
     fig = plots.plot_rolling_volatility(pnl, base_pnl, figsize=figsize_small)
-    _handle_fig("rolling_volatility", fig)
+    figures["rolling_volatility"] = fig
+    if show:
+        fig.show()
 
     # Day-of-Week Analysis
     fig = plots.plot_dow_returns(pnl)
-    _handle_fig("dow_returns", fig)
+    figures["dow_returns"] = fig
+    if show:
+        fig.show()
 
     return {
         "summary": summary,
