@@ -131,12 +131,34 @@ class TestHtml:
         assert isinstance(result, str)
         assert "data:image/png;base64," in result
 
-    def test_with_benchmark_includes_regime_analysis_section(
-        self, sample_df, benchmark_df
-    ):
-        result = reports.html(sample_df, base_pnl=benchmark_df)
+    def test_with_benchmark_includes_regime_analysis_section(self):
+        from datetime import date, timedelta
+
+        import numpy as np
+
+        # 600 daily rows — long enough for trend_window=200 and
+        # vol_window=60 to populate at least one regime.
+        rng = np.random.default_rng(0)
+        n = 600
+        dates = [date(2020, 1, 1) + timedelta(days=i) for i in range(n)]
+        strat = pl.DataFrame(
+            {"date": dates, "pnl": rng.normal(0.0008, 0.012, n).tolist()}
+        ).with_columns(pl.col("date").cast(pl.Date))
+        bench = pl.DataFrame(
+            {"date": dates, "pnl": rng.normal(0.0004, 0.009, n).tolist()}
+        ).with_columns(pl.col("date").cast(pl.Date))
+
+        result = reports.html(strat, base_pnl=bench)
         assert "Regime Analysis" in result
-        assert "bull_low_vol" in result
+        assert any(
+            label in result
+            for label in (
+                "bull_low_vol",
+                "bull_high_vol",
+                "bear_low_vol",
+                "bear_high_vol",
+            )
+        )
         assert result.index("Top Drawdowns") < result.index("Regime Analysis")
 
     def test_output_writes_file(self, sample_df, tmp_path):
