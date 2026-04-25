@@ -359,37 +359,30 @@ def full(
         else:
             plt.close(fg)
 
-    # Cumulative Returns
-    fig = plots.plot_cumulative_returns(pnl, base_pnl, figsize=figsize_main)
-    _handle_fig("cumulative_returns", fig)
-
-    # Drawdown
-    fig = plots.plot_drawdown(pnl, figsize=figsize_small)
-    _handle_fig("drawdown", fig)
-
-    # Monthly Heatmap
-    fig = plots.plot_monthly_heatmap(pnl, figsize=figsize_main)
-    _handle_fig("monthly_heatmap", fig)
-
-    # Yearly Returns
-    fig = plots.plot_yearly_returns(pnl, base_pnl, figsize=figsize_main)
-    _handle_fig("yearly_returns", fig)
-
-    # Return Distribution
-    fig = plots.plot_return_distribution(pnl, base_pnl, figsize=figsize_main)
-    _handle_fig("distribution", fig)
-
-    # Rolling Sharpe
-    fig = plots.plot_rolling_sharpe(pnl, base_pnl, figsize=figsize_small)
-    _handle_fig("rolling_sharpe", fig)
-
-    # Rolling Volatility
-    fig = plots.plot_rolling_volatility(pnl, base_pnl, figsize=figsize_small)
-    _handle_fig("rolling_volatility", fig)
-
-    # Day-of-Week Analysis
-    fig = plots.plot_dow_returns(pnl)
-    _handle_fig("dow_returns", fig)
+    _handle_fig(
+        "cumulative_returns",
+        plots.plot_cumulative_returns(pnl, base_pnl, figsize=figsize_main),
+    )
+    _handle_fig("drawdown", plots.plot_drawdown(pnl, figsize=figsize_small))
+    _handle_fig(
+        "monthly_heatmap", plots.plot_monthly_heatmap(pnl, figsize=figsize_main)
+    )
+    _handle_fig(
+        "yearly_returns", plots.plot_yearly_returns(pnl, base_pnl, figsize=figsize_main)
+    )
+    _handle_fig(
+        "distribution",
+        plots.plot_return_distribution(pnl, base_pnl, figsize=figsize_main),
+    )
+    _handle_fig(
+        "rolling_sharpe",
+        plots.plot_rolling_sharpe(pnl, base_pnl, figsize=figsize_small),
+    )
+    _handle_fig(
+        "rolling_volatility",
+        plots.plot_rolling_volatility(pnl, base_pnl, figsize=figsize_small),
+    )
+    _handle_fig("dow_returns", plots.plot_dow_returns(pnl))
 
     return {
         "summary": summary,
