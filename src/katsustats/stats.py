@@ -281,7 +281,8 @@ def _period_returns(df: pl.DataFrame, every: str) -> pl.Series:
 
 def _daily_returns(df: pl.DataFrame) -> pl.DataFrame:
     """Compound returns to one row per calendar date."""
-    return _compound_by_date(df.with_columns(pl.col("date").cast(pl.Date)).sort("date"))
+    normalised = df.with_columns(pl.col("date").cast(pl.Date)).sort("date")
+    return _compound_by_date(normalised)
 
 
 def consecutive_wins(df: DataFrameLike) -> int:
