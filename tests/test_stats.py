@@ -957,34 +957,38 @@ class TestPeriodPerformanceRaw:
 
         import pandas as pd
 
+        num_days = 400
         start = datetime(2024, 1, 1)
-        days = [start + timedelta(days=i) for i in range(400)]
+        days = [start + timedelta(days=i) for i in range(num_days)]
         intraday_dates = [
             datetime.combine(day.date(), session)
             for day in days
             for session in (time(9, 30), time(16, 0))
         ]
-        intraday_strategy_returns = [0.001, 0.002]
-        intraday_benchmark_returns = [0.0005, 0.001]
+        strategy_session_returns = [0.001, 0.002]
+        benchmark_session_returns = [0.0005, 0.001]
         daily_strategy_return = (
-            (1 + intraday_strategy_returns[0]) * (1 + intraday_strategy_returns[1])
+            (1 + strategy_session_returns[0]) * (1 + strategy_session_returns[1])
         ) - 1
         daily_benchmark_return = (
-            (1 + intraday_benchmark_returns[0]) * (1 + intraday_benchmark_returns[1])
+            (1 + benchmark_session_returns[0]) * (1 + benchmark_session_returns[1])
         ) - 1
         intraday_df = pd.DataFrame(
-            {"date": intraday_dates, "pnl": intraday_strategy_returns * 400}
+            {"date": intraday_dates, "pnl": strategy_session_returns * num_days}
         )
         intraday_base_df = pd.DataFrame(
-            {"date": intraday_dates, "pnl": intraday_benchmark_returns * 400}
+            {"date": intraday_dates, "pnl": benchmark_session_returns * num_days}
         )
         daily_df = pd.DataFrame(
-            {"date": [day.date() for day in days], "pnl": [daily_strategy_return] * 400}
+            {
+                "date": [day.date() for day in days],
+                "pnl": [daily_strategy_return] * num_days,
+            }
         )
         daily_base_df = pd.DataFrame(
             {
                 "date": [day.date() for day in days],
-                "pnl": [daily_benchmark_return] * 400,
+                "pnl": [daily_benchmark_return] * num_days,
             }
         )
 
