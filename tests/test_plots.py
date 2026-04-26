@@ -70,7 +70,9 @@ class TestPlotDrawdown:
         fig = plots.plot_drawdown(sample_df)
         ax = fig.axes[0]
         collections = [
-            c for c in ax.collections if isinstance(c, mcollections.FillBetweenPolyCollection)
+            c
+            for c in ax.collections
+            if isinstance(c, mcollections.FillBetweenPolyCollection)
         ]
         assert len(collections) == 1
 
@@ -85,7 +87,9 @@ class TestPlotDrawdown:
         fig = plots.plot_drawdown(all_positive_df)
         ax = fig.axes[0]
         collections = [
-            c for c in ax.collections if isinstance(c, mcollections.FillBetweenPolyCollection)
+            c
+            for c in ax.collections
+            if isinstance(c, mcollections.FillBetweenPolyCollection)
         ]
         assert len(collections) == 1
 
