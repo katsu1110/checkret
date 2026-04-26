@@ -918,6 +918,23 @@ class TestPeriodPerformanceRaw:
         assert math.isnan(raw["3Y"]["strategy"])
         assert math.isnan(raw["1Y"]["strategy"])
 
+    def test_calendar_period_start_on_weekend_not_nan(self):
+        # 2023-01-01 was a Sunday; first trading day is 2023-01-02.
+        # MTD/QTD/YTD cutoff is 2023-01-01, which predates the first row,
+        # but there IS data in January so these should NOT be NaN.
+        from datetime import date
+
+        df = pl.DataFrame(
+            {
+                "date": [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
+                "pnl": [0.01, 0.02, -0.005],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+        raw = stats.period_performance_raw(df)
+        assert not math.isnan(raw["MTD"]["strategy"])
+        assert not math.isnan(raw["QTD"]["strategy"])
+        assert not math.isnan(raw["YTD"]["strategy"])
+
     def test_benchmark_key_absent_without_base(self, sample_df):
         raw = stats.period_performance_raw(sample_df)
         for entry in raw.values():

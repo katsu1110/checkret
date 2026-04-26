@@ -902,14 +902,26 @@ def _period_cutoff(anchor: pl.Date, label: str) -> pl.Date | None:
     return None  # SI — caller uses full series
 
 
-def _trailing_return(df: pl.DataFrame, cutoff: pl.Date | None) -> float:
-    """Compounded return from cutoff to end of df.  None means full series."""
+_TRAILING_LABELS = {"1Y", "3Y", "5Y"}
+
+
+def _trailing_return(
+    df: pl.DataFrame, cutoff: pl.Date | None, *, require_full_window: bool = False
+) -> float:
+    """Compounded return from cutoff to end of df.  None means full series.
+
+    require_full_window=True (used for 1Y/3Y/5Y): return NaN when the cutoff
+    predates the first available data point — the history is genuinely too short.
+    require_full_window=False (used for MTD/QTD/YTD): compute from the first
+    available row on or after the cutoff, so a month/quarter/year that starts on
+    a weekend or holiday still returns a value rather than "—".
+    """
     if df.height == 0:
         return float("nan")
     if cutoff is None:
         return float(total_return(df))
     first = df.get_column("date").min()
-    if cutoff <= first:
+    if require_full_window and cutoff <= first:
         return float("nan")
     subset = df.filter(pl.col("date") >= cutoff)
     return float(total_return(subset)) if subset.height > 0 else float("nan")
@@ -924,12 +936,20 @@ def period_performance_raw(
 
     Returns a dict keyed by period label.  Each value is a dict with key
     "strategy" (always present) and "benchmark" (when base_df provided).
-    Periods that start before the first data point return float("nan").
+    1Y/3Y/5Y return float("nan") when the series is shorter than the window.
+    Strategy and benchmark are aligned to common dates before computing so
+    both columns in the table always reflect the same date range.
     """
     df = ensure_polars(df)
     df = df.sort("date")
     if base_df is not None:
         base_df = ensure_polars(base_df, name="base_df").sort("date")
+        # Align to common dates so strategy and benchmark use the same anchor.
+        joined = df.join(
+            base_df.rename({"pnl": "_base_pnl"}), on="date", how="inner"
+        ).sort("date")
+        df = joined.select(["date", "pnl"])
+        base_df = joined.select([pl.col("date"), pl.col("_base_pnl").alias("pnl")])
 
     if df.height == 0:
         row: dict[str, float] = {"strategy": float("nan")}
@@ -941,9 +961,14 @@ def period_performance_raw(
     result: dict[str, dict[str, float]] = {}
     for lbl in _PERIOD_LABELS:
         cutoff = _period_cutoff(anchor, lbl)  # None for SI
-        entry: dict[str, float] = {"strategy": _trailing_return(df, cutoff)}
+        full_window = lbl in _TRAILING_LABELS
+        entry: dict[str, float] = {
+            "strategy": _trailing_return(df, cutoff, require_full_window=full_window)
+        }
         if base_df is not None:
-            entry["benchmark"] = _trailing_return(base_df, cutoff)
+            entry["benchmark"] = _trailing_return(
+                base_df, cutoff, require_full_window=full_window
+            )
         result[lbl] = entry
 
     return result
