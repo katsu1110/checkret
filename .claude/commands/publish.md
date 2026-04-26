@@ -1,4 +1,4 @@
-# /release — Publish a new katsustats release to PyPI
+# /publish — Publish a new katsustats release to PyPI
 
 Cut a new release for this project. Follow every step in order.
 
@@ -10,7 +10,7 @@ Decide the bump level based on the commits since the last release tag:
 - **minor** (`x.Y.0`): new public functions/classes, new features, backward-compatible
 - **major** (`X.0.0`): breaking changes to the public API
 
-If the user specified a version (e.g. `/release 0.3.0`), use that instead.
+If the user specified a version (e.g. `/publish 0.3.0`), use that instead.
 
 ## Step 2 — Confirm with the user
 
