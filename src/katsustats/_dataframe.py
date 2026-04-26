@@ -18,6 +18,9 @@ def ensure_polars(df: Any, name: str = "df") -> pl.DataFrame:
     """Convert a pandas or Polars DataFrame to a Polars DataFrame.
 
     Validates that the result has the required ["date", "pnl"] columns.
+    If the ``date`` column is not already ``pl.Date`` (e.g. it is a
+    ``pl.Datetime``), it is cast to ``pl.Date``, truncating any time
+    component.
     """
     if isinstance(df, pl.DataFrame):
         polars_df = df
@@ -32,4 +35,6 @@ def ensure_polars(df: Any, name: str = "df") -> pl.DataFrame:
         )
     missing = {"date", "pnl"} - set(polars_df.columns)
     assert not missing, f"{name} is missing columns: {missing}"
+    if polars_df.schema["date"] != pl.Date:
+        polars_df = polars_df.with_columns(pl.col("date").cast(pl.Date))
     return polars_df
