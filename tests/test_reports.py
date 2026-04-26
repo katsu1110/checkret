@@ -81,9 +81,11 @@ class TestFull:
         result = reports.full(sample_df, None, 0.04, show=False)
         assert isinstance(result["metrics"], pl.DataFrame)
 
-    def test_duplicate_dates_raises(self, grouped_sample_pandas_df):
-        with pytest.raises(AssertionError):
-            reports.full(grouped_sample_pandas_df, show=False)
+    def test_duplicate_dates_warns_and_aggregates(self, grouped_sample_pandas_df):
+        with pytest.warns(UserWarning, match="duplicate dates"):
+            result = reports.full(grouped_sample_pandas_df, show=False)
+        assert isinstance(result["metrics"], pl.DataFrame)
+        assert isinstance(result["drawdowns"], pl.DataFrame)
 
     def test_accepts_pandas_inputs(self, sample_pandas_df, benchmark_pandas_df):
         result = reports.full(
@@ -223,6 +225,7 @@ class TestHtml:
         result = reports.html(sample_df, None, 0.04)
         assert isinstance(result, str)
 
-    def test_duplicate_dates_raises(self, grouped_sample_pandas_df):
-        with pytest.raises(AssertionError):
-            reports.html(grouped_sample_pandas_df)
+    def test_duplicate_dates_warns_and_aggregates(self, grouped_sample_pandas_df):
+        with pytest.warns(UserWarning, match="duplicate dates"):
+            result = reports.html(grouped_sample_pandas_df)
+        assert isinstance(result, str)
