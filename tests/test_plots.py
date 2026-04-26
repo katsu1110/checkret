@@ -64,10 +64,30 @@ class TestPlotDrawdown:
         fig = plots.plot_drawdown(sample_df)
         assert isinstance(fig, Figure)
 
+    def test_adds_filled_underwater_area(self, sample_df):
+        import matplotlib.collections as mcollections
+
+        fig = plots.plot_drawdown(sample_df)
+        ax = fig.axes[0]
+        collections = [
+            c for c in ax.collections if isinstance(c, mcollections.FillBetweenPolyCollection)
+        ]
+        assert len(collections) == 1
+
     def test_all_positive_no_drawdown(self, all_positive_df):
         # Should not raise even when there's no drawdown
         fig = plots.plot_drawdown(all_positive_df)
         assert isinstance(fig, Figure)
+
+    def test_all_positive_still_adds_fill_artist(self, all_positive_df):
+        import matplotlib.collections as mcollections
+
+        fig = plots.plot_drawdown(all_positive_df)
+        ax = fig.axes[0]
+        collections = [
+            c for c in ax.collections if isinstance(c, mcollections.FillBetweenPolyCollection)
+        ]
+        assert len(collections) == 1
 
 
 # ---------------------------------------------------------------------------
