@@ -952,6 +952,40 @@ class TestPeriodPerformanceRaw:
         for entry in raw.values():
             assert "benchmark" in entry
 
+    def test_pandas_datetime_inputs_are_aggregated_to_daily_before_join(self):
+        from datetime import datetime, time, timedelta
+
+        import pandas as pd
+
+        start = datetime(2024, 1, 1)
+        days = [start + timedelta(days=i) for i in range(400)]
+        intraday_dates = [
+            datetime.combine(day.date(), session)
+            for day in days
+            for session in (time(9, 30), time(16, 0))
+        ]
+        df = pd.DataFrame({"date": intraday_dates, "pnl": [0.001, 0.002] * 400})
+        base_df = pd.DataFrame({"date": intraday_dates, "pnl": [0.0005, 0.001] * 400})
+        daily_df = pd.DataFrame(
+            {"date": [day.date() for day in days], "pnl": [(1.001 * 1.002) - 1] * 400}
+        )
+        daily_base_df = pd.DataFrame(
+            {
+                "date": [day.date() for day in days],
+                "pnl": [(1.0005 * 1.001) - 1] * 400,
+            }
+        )
+
+        raw = stats.period_performance_raw(df, base_df)
+        expected = stats.period_performance_raw(daily_df, daily_base_df)
+
+        for label in raw:
+            for key in raw[label]:
+                if math.isnan(expected[label][key]):
+                    assert math.isnan(raw[label][key])
+                else:
+                    assert raw[label][key] == pytest.approx(expected[label][key])
+
     def test_empty_df(self):
         df = pl.DataFrame({"date": [], "pnl": []}).with_columns(
             pl.col("date").cast(pl.Date), pl.col("pnl").cast(pl.Float64)
