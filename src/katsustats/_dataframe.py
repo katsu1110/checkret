@@ -18,6 +18,9 @@ def ensure_polars(df: Any, name: str = "df") -> pl.DataFrame:
     """Convert a pandas or Polars DataFrame to a Polars DataFrame.
 
     Validates that the result has the required ["date", "pnl"] columns.
+    If the ``date`` column is not already ``pl.Date`` (e.g. it is a
+    ``pl.Datetime``), it is cast to ``pl.Date``, truncating any time
+    component.
     """
     if isinstance(df, pl.DataFrame):
         polars_df = df
