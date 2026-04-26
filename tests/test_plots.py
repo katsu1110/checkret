@@ -19,6 +19,7 @@ def close_all_figures():
 
 
 def _drawdown_fill_collections(fig: Figure) -> list[PolyCollection]:
+    """Return PolyCollection artists added to the drawdown plot axes."""
     ax = fig.axes[0]
     return [
         collection
