@@ -47,11 +47,10 @@ def _compound_duplicate_dates(df: pl.DataFrame, name: str) -> pl.DataFrame:
 def ensure_polars(df: Any, name: str = "df") -> pl.DataFrame:
     """Convert a pandas or Polars DataFrame to a Polars DataFrame.
 
-    Validates that the result has the required ["date", "pnl"] columns.
-    If the ``date`` column is not already ``pl.Date`` (e.g. it is a
-    ``pl.Datetime``), it is cast to ``pl.Date``, truncating any time
-    component. If duplicate dates are present after normalization, same-date
-    ``pnl`` rows are compounded into one daily return and a warning is emitted.
+    Always returns a DataFrame with exactly the columns ``["date", "pnl"]``.
+    Validates that the input has those columns, casts ``date`` to ``pl.Date``
+    if needed, and compounds same-date ``pnl`` rows into one daily return with
+    a warning when duplicate dates are detected.
     """
     if isinstance(df, pl.DataFrame):
         polars_df = df
@@ -68,4 +67,5 @@ def ensure_polars(df: Any, name: str = "df") -> pl.DataFrame:
     assert not missing, f"{name} is missing columns: {missing}"
     if polars_df.schema["date"] != pl.Date:
         polars_df = polars_df.with_columns(pl.col("date").cast(pl.Date))
+    polars_df = polars_df.select(["date", "pnl"])
     return _compound_duplicate_dates(polars_df, name)
