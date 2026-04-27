@@ -576,8 +576,8 @@ def _build_html(
         plots.plot_yearly_returns(pnl, base_pnl, figsize=(8, 3))
     )
     dd_compact_b64 = _fig_to_base64(plots.plot_drawdown(pnl, figsize=(8, 3)))
-    rolling_sharpe_compact_b64 = _fig_to_base64(
-        plots.plot_rolling_sharpe(pnl, base_pnl, figsize=(8, 3))
+    dd_periods_b64 = _fig_to_base64(
+        plots.plot_drawdown_periods(pnl, figsize=(8, 3))
     )
 
     key_performance_block = (
@@ -593,8 +593,8 @@ def _build_html(
         f' alt="Yearly Returns"/></div>'
         f'<div><img class="chart-img" src="data:image/png;base64,{dd_compact_b64}"'
         f' alt="Drawdown"/></div>'
-        f'<div><img class="chart-img" src="data:image/png;base64,{rolling_sharpe_compact_b64}"'
-        f' alt="Rolling Sharpe"/></div>'
+        f'<div><img class="chart-img" src="data:image/png;base64,{dd_periods_b64}"'
+        f' alt="Drawdown Periods"/></div>'
         f"</div>"
         f"</div>"
         f"</div>"
