@@ -5,6 +5,16 @@ build/
 dist/
 wheels/
 *.egg-info
+.coverage
+.pytest_cache/
+.ruff_cache/
+htmlcov/
 
 # Virtual environments
 .venv
+
+# macOS
+.DS_Store
+
+# Editor / notebook metadata
+.ipynb_checkpoints/
