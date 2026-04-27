@@ -576,14 +576,12 @@ def _build_html(
         plots.plot_yearly_returns(pnl, base_pnl, figsize=(8, 3))
     )
     dd_compact_b64 = _fig_to_base64(plots.plot_drawdown(pnl, figsize=(8, 3)))
-    dd_periods_b64 = _fig_to_base64(
-        plots.plot_drawdown_periods(pnl, figsize=(8, 3))
-    )
+    dd_periods_b64 = _fig_to_base64(plots.plot_drawdown_periods(pnl, figsize=(8, 3)))
 
     key_performance_block = (
         f'<div class="section">'
         f'<div class="grid-keyperf">'
-        f'<div>'
+        f"<div>"
         f'<h3 class="sub-h2">Performance Metrics</h3>'
         f"{metrics_table}"
         f"</div>"
