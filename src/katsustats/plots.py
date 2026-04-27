@@ -1,7 +1,7 @@
 """
 katsustats.plots — Matplotlib chart functions for backtest visualization.
 
-All plot functions accept Polars or pandas DataFrames with ["date", "pnl"]
+All plot functions accept Polars or pandas DataFrames with ["date", "returns"]
 columns and return matplotlib Figure objects for inline notebook display.
 """
 
@@ -22,12 +22,12 @@ from ._dataframe import DataFrameLike, ensure_polars
 # ---------------------------------------------------------------------------
 
 _COLORS = {
-    "strategy": "#2196F3",  # Material Blue
-    "benchmark": "#FF9800",  # Material Orange
+    "strategy": "#2563eb",  # matches HTML report accent blue
+    "benchmark": "#f97316",  # muted orange, easier on the eye than Material Orange
     "positive": "#4CAF50",  # Material Green
     "negative": "#F44336",  # Material Red
     "neutral": "#9E9E9E",  # Material Grey
-    "fill": "#BBDEFB",  # Light Blue
+    "fill": "#dbeafe",  # soft blue tint matching strategy colour
     "grid": "#E0E0E0",
     "text": "#212121",
     "text_secondary": "#757575",
@@ -38,6 +38,16 @@ _HEATMAP_CMAP = LinearSegmentedColormap.from_list(
     "katsustats_diverging",
     [_COLORS["negative"], "#ffffff", _COLORS["positive"]],
 )
+
+# Prefer system sans-serif fonts (Helvetica/Arial) over matplotlib's DejaVu Sans
+# so chart typography matches the HTML report's sans-serif stack.
+plt.rcParams["font.family"] = "sans-serif"
+plt.rcParams["font.sans-serif"] = [
+    "Helvetica",
+    "Arial",
+    "Liberation Sans",
+    "DejaVu Sans",
+]
 
 
 def _apply_style(ax, fig):
@@ -77,11 +87,11 @@ def _align_to_common_dates(
 
     The sort ensures chronological order since joins do not preserve row order.
     """
-    joined = df.join(base_df.rename({"pnl": "_base_pnl"}), on="date", how="inner").sort(
-        "date"
-    )
-    return joined.select(["date", "pnl"]), joined.select(
-        [pl.col("date"), pl.col("_base_pnl").alias("pnl")]
+    joined = df.join(
+        base_df.rename({"returns": "_base_returns"}), on="date", how="inner"
+    ).sort("date")
+    return joined.select(["date", "returns"]), joined.select(
+        [pl.col("date"), pl.col("_base_returns").alias("returns")]
     )
 
 
@@ -194,7 +204,7 @@ def plot_drawdown_periods(
         ax.axvspan(start, end, alpha=0.2, color=_COLORS["negative"], lw=0)
 
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
-    _add_title(ax, fig, "Drawdown Periods")
+    _add_title(ax, fig, f"Worst {top_n} Drawdown Periods")
     fig.autofmt_xdate()
     fig.tight_layout()
     return fig
@@ -214,7 +224,7 @@ def plot_monthly_heatmap(df: DataFrameLike, figsize: tuple = (12, 5)) -> Figure:
             pl.col("date").cast(pl.Date).dt.month().alias("month"),
         )
         .group_by(["year", "month"])
-        .agg(((pl.col("pnl") + 1).product() - 1).alias("ret"))
+        .agg(((pl.col("returns") + 1).product() - 1).alias("ret"))
         .sort(["year", "month"])
     )
 
@@ -316,7 +326,7 @@ def plot_yearly_returns(
         return (
             d.with_columns(pl.col("date").cast(pl.Date).dt.year().alias("year"))
             .group_by("year")
-            .agg(((pl.col("pnl") + 1).product() - 1).alias("ret"))
+            .agg(((pl.col("returns") + 1).product() - 1).alias("ret"))
             .sort("year")
         )
 
@@ -382,7 +392,7 @@ def plot_eoy_returns(
         return (
             d.with_columns(pl.col("date").cast(pl.Date).dt.year().alias("year"))
             .group_by("year")
-            .agg(((pl.col("pnl") + 1).product() - 1).alias("ret"))
+            .agg(((pl.col("returns") + 1).product() - 1).alias("ret"))
             .sort("year")
         )
 
