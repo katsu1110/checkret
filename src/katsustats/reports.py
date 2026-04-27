@@ -216,7 +216,7 @@ _HTML_TEMPLATE = """\
   }}
 
   /* Sub-heading inside grid cells */
-  .sub-h2 {{
+  .section-sub-heading {{
     font-size: 15px;
     font-weight: 600;
     color: var(--text);
@@ -580,13 +580,14 @@ def _build_html(
 
     key_performance_block = (
         f'<div class="section">'
+        f"<h2>Key Performance</h2>"
         f'<div class="grid-keyperf">'
         f"<div>"
-        f'<h3 class="sub-h2">Performance Metrics</h3>'
+        f'<h3 class="section-sub-heading">Performance Metrics</h3>'
         f"{metrics_table}"
         f"</div>"
         f'<div class="stack">'
-        f'<div><h3 class="sub-h2">Period Performance</h3>{period_html}</div>'
+        f'<div><h3 class="section-sub-heading">Period Performance</h3>{period_html}</div>'
         f'<div><img class="chart-img" src="data:image/png;base64,{yearly_b64}"'
         f' alt="Yearly Returns"/></div>'
         f'<div><img class="chart-img" src="data:image/png;base64,{dd_compact_b64}"'
