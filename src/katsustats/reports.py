@@ -353,7 +353,7 @@ def full(
     benchmark: DataFrameLike | None = None,
     rf: float = 0.0,
     periods: int = 252,
-    figsize_main: tuple = (12, 5),
+    figsize_main: tuple = (12, 7),
     figsize_small: tuple = (12, 4),
     show: bool = True,
     verbose: bool = True,
@@ -558,7 +558,7 @@ def _build_html(
 
     # ── Hero chart: Cumulative Returns (full-width) ─────────────────
     hero_b64 = _fig_to_base64(
-        plots.plot_cumulative_returns(returns, benchmark, figsize=(12, 5))
+        plots.plot_cumulative_returns(returns, benchmark, figsize=(12, 7))
     )
     hero_chart = (
         f'<div class="section">'

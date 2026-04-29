@@ -103,9 +103,9 @@ def _align_to_common_dates(
 def plot_cumulative_returns(
     df: DataFrameLike,
     base_df: DataFrameLike | None = None,
-    figsize: tuple = (12, 5),
+    figsize: tuple = (12, 7),
 ) -> Figure:
-    """Cumulative return curve for strategy vs benchmark."""
+    """Cumulative return curve (top) with daily return bars (bottom)."""
     df = ensure_polars(df)
     if base_df is not None:
         base_df = ensure_polars(base_df, name="base_df")
@@ -113,9 +113,13 @@ def plot_cumulative_returns(
     r = stats._to_returns(df)
     cumval = stats._cumulative(r)
     dates = df.get_column("date").to_numpy()
+    r_np = r.to_numpy()
 
-    fig, ax = plt.subplots(figsize=figsize)
+    fig, (ax, ax_bar) = plt.subplots(
+        2, 1, figsize=figsize, sharex=True, height_ratios=[3, 1]
+    )
     _apply_style(ax, fig)
+    _apply_style(ax_bar, fig)
 
     ax.plot(
         dates, cumval.to_numpy(), lw=1.8, color=_COLORS["strategy"], label="Strategy"
@@ -136,6 +140,13 @@ def plot_cumulative_returns(
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
     ax.axhline(0, color=_COLORS["neutral"], lw=0.8, ls="--")
     ax.legend(fontsize=9, frameon=False)
+
+    bar_colors = [_COLORS["positive"] if v >= 0 else _COLORS["negative"] for v in r_np]
+    ax_bar.bar(dates, r_np, color=bar_colors, alpha=0.7, width=0.8)
+    ax_bar.axhline(0, color=_COLORS["neutral"], lw=0.8, ls="--")
+    ax_bar.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
+    ax_bar.set_ylabel("Daily Return", fontsize=8, color=_COLORS["text_secondary"])
+
     _add_title(ax, fig, "Cumulative Returns")
     fig.autofmt_xdate()
     fig.tight_layout()
