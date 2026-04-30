@@ -43,14 +43,30 @@ Highlights:
 
 ## Installation
 
+**As a Python library:**
+
 ```bash
 pip install katsustats
+# or
+uv add katsustats
 ```
 
-Or with `uv`:
+**As a standalone CLI** (no script needed — just install and run):
 
 ```bash
-uv add katsustats
+pipx install katsustats   # recommended for CLI-only use
+# or
+uv tool install katsustats
+```
+
+**Standalone binary** (no Python needed at all):
+
+Download a pre-built binary for your platform from the [GitHub Releases page](https://github.com/katsu1110/katsustats/releases), make it executable, and run it directly:
+
+```bash
+# macOS / Linux
+chmod +x katsustats-linux-x86_64
+./katsustats-linux-x86_64 report trades.csv -o report.html
 ```
 
 ## Try it online
@@ -165,7 +181,7 @@ results = katsustats.reports.full(
 
 ## CLI
 
-Generate an HTML tearsheet directly from a CSV or Parquet file — no Python required:
+Generate an HTML tearsheet directly from a CSV or Parquet file — no script needed:
 
 ```bash
 # From a CSV file (date and returns columns)

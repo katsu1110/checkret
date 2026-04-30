@@ -1,0 +1,57 @@
+name: Build CLI binaries
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: katsustats-linux-x86_64
+          - os: macos-latest
+            artifact_name: katsustats-macos-arm64
+          - os: windows-latest
+            artifact_name: katsustats-windows-x86_64.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version-file: .python-version
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Install PyInstaller
+        run: uv pip install pyinstaller
+
+      - name: Build binary
+        shell: bash
+        run: >-
+          uv run pyinstaller
+          --onefile
+          --name katsustats
+          --collect-all polars
+          --hidden-import matplotlib.backends.backend_agg
+          src/katsustats/__main__.py
+
+      - name: Rename artifact (Unix)
+        if: runner.os != 'Windows'
+        run: mv dist/katsustats dist/${{ matrix.artifact_name }}
+
+      - name: Rename artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Move-Item dist\katsustats.exe dist\${{ matrix.artifact_name }}
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/${{ matrix.artifact_name }}
