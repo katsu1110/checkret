@@ -2,17 +2,19 @@
 
 ## Project overview
 
-katsustats is a Python library for generating backtest reports from financial return series. It takes a Polars DataFrame with `["date", "returns"]` columns and produces summary metrics, drawdown analysis, matplotlib charts, and self-contained HTML reports.
+katsustats is a Python library and CLI for generating backtest reports from financial return series. It takes a Polars DataFrame with `["date", "returns"]` columns (or a pandas DataFrame/Series) and produces summary metrics, drawdown analysis, matplotlib charts, and self-contained HTML reports.
 
 ## Architecture
 
-Three-module functional design in `src/katsustats/`:
+Functional design in `src/katsustats/`:
 
 - `stats.py` — Pure metric computation (Sharpe, CAGR, drawdowns, etc.)
 - `plots.py` — Matplotlib chart generation (8 chart types)
 - `reports.py` — Orchestration: `full()` for dict output, `html()` for HTML report
+- `_dataframe.py` — Input normalisation: `ensure_polars()` converts pandas DataFrames, pandas Series (with DatetimeIndex), and Polars DataFrames to the canonical `["date", "returns"]` Polars frame
+- `__main__.py` — CLI entry point (`katsustats report`); reads CSV/Parquet and calls `reports.html()`
 
-No classes. All functions expect a Polars DataFrame with `date: pl.Date` and `returns: pl.Float64` columns.
+No classes. All public functions accept a Polars DataFrame, pandas DataFrame, or pandas Series with `date` and `returns` data.
 
 ## Setup
 
@@ -23,7 +25,7 @@ uv sync --dev   # includes pytest + ruff
 - Python 3.13 (`.python-version`), requires >=3.9
 - Build backend: hatchling (src layout)
 - Dependencies: polars, numpy, matplotlib
-- Dev dependencies: pytest, ruff
+- Dev dependencies: pytest, ruff, pandas
 
 ## Build
 
@@ -36,7 +38,7 @@ uv build
 ```bash
 uv run ruff check src/ tests/         # lint
 uv run ruff format --check src/ tests/ # format check
-uv run pytest tests/ -v               # 113 tests across stats/plots/reports
+uv run pytest tests/ -v               # 265 tests across stats/plots/reports/cli
 ```
 
 CI runs on every PR and push to main (`.github/workflows/ci.yml`). All tests and ruff checks must pass before merging.
@@ -48,7 +50,8 @@ CI runs on every PR and push to main (`.github/workflows/ci.yml`). All tests and
 - snake_case functions, `_` prefix for private helpers
 - Short docstrings on all public functions
 - Section separators: `# ---...---` comment banners
-- Input validation via `assert` statements
+- Input validation via `assert` statements in library code; `sys.exit()` with user-facing messages in the CLI
+- pandas inputs (DataFrame with `date` column, DatetimeIndex DataFrame, or Series) are normalised in `_dataframe.py:ensure_polars()` — no changes needed in stats/plots/reports
 - Plot styling centralized in `_COLORS` dict with `_apply_style()` / `_add_title()` helpers
 - Purely functional — no OOP
 - Ruff: line-length=88, target py39, select E/W/F/I/UP, ignore E501
