@@ -55,11 +55,19 @@ def _cmd_report(args: argparse.Namespace) -> None:
             args.benchmark_returns_col,
         )
 
-    default_suffix = ".json" if args.format == "json" else ".html"
+    default_suffix = {"html": ".html", "json": ".json", "markdown": ".md"}[args.format]
     output = args.output or str(Path(args.file).with_suffix(default_suffix))
 
     if args.format == "json":
         reports.json(
+            df,
+            benchmark=benchmark,
+            rf=args.rf,
+            title=args.title,
+            output=output,
+        )
+    elif args.format == "markdown":
+        reports.markdown(
             df,
             benchmark=benchmark,
             rf=args.rf,
@@ -87,7 +95,7 @@ def main() -> None:
 
     p_report = sub.add_parser(
         "report",
-        help="Generate an HTML or JSON backtest report from a CSV or Parquet file.",
+        help="Generate an HTML, JSON, or Markdown backtest report from a CSV or Parquet file.",
     )
     p_report.add_argument("file", help="Path to a .csv or .parquet returns file.")
     p_report.add_argument(
@@ -97,11 +105,11 @@ def main() -> None:
         "-o",
         "--output",
         default=None,
-        help="Output file path (default: <file>.html or <file>.json).",
+        help="Output file path (default: <file>.html, <file>.json, or <file>.md).",
     )
     p_report.add_argument(
         "--format",
-        choices=["html", "json"],
+        choices=["html", "json", "markdown"],
         default="html",
         help="Output report format (default: html).",
     )

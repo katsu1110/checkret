@@ -363,3 +363,66 @@ class TestJson:
         assert json.loads(result)["strategy"]["summary"][
             "total_return"
         ] == pytest.approx((1.10 * 1.20) * 0.90 - 1.0)
+
+
+# ---------------------------------------------------------------------------
+# reports.markdown
+# ---------------------------------------------------------------------------
+
+
+class TestMarkdown:
+    def test_returns_markdown_string(self, sample_df):
+        result = reports.markdown(sample_df)
+        assert isinstance(result, str)
+
+    def test_contains_core_sections(self, sample_df):
+        result = reports.markdown(sample_df, title="My Strategy")
+        assert result.startswith("# My Strategy Backtest Summary")
+        assert "## Overview" in result
+        assert "## Headline Metrics" in result
+        assert "## Performance Metrics" in result
+        assert "## Period Performance" in result
+        assert "## Day-of-Week Statistics" in result
+
+    def test_with_benchmark_includes_benchmark_sections(self, sample_df, benchmark_df):
+        result = reports.markdown(sample_df, benchmark=benchmark_df)
+        assert "| Metric | Strategy | Benchmark |" in result
+        assert "## Regime Analysis" not in result
+
+    def test_with_regime_data_includes_regime_section(self):
+        from datetime import date, timedelta
+
+        import numpy as np
+
+        rng = np.random.default_rng(0)
+        n = 600
+        dates = [date(2020, 1, 1) + timedelta(days=i) for i in range(n)]
+        strat = pl.DataFrame(
+            {"date": dates, "returns": rng.normal(0.0008, 0.012, n).tolist()}
+        ).with_columns(pl.col("date").cast(pl.Date))
+        bench = pl.DataFrame(
+            {"date": dates, "returns": rng.normal(0.0004, 0.009, n).tolist()}
+        ).with_columns(pl.col("date").cast(pl.Date))
+
+        result = reports.markdown(strat, benchmark=bench)
+        assert "## Regime Analysis" in result
+        assert "bull_low_vol" in result or "bear_low_vol" in result
+
+    def test_output_writes_markdown_file(self, sample_df, tmp_path):
+        out_file = tmp_path / "report.md"
+        result = reports.markdown(sample_df, output=str(out_file))
+        assert out_file.exists()
+        assert out_file.read_text(encoding="utf-8") == result
+
+    def test_duplicate_dates_warns_and_aggregates(self):
+        duplicate_dates_df = pl.DataFrame(
+            {
+                "date": ["2023-01-02", "2023-01-02", "2023-01-03"],
+                "returns": [0.10, 0.20, -0.10],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+
+        with pytest.warns(UserWarning, match="duplicate dates"):
+            result = reports.markdown(duplicate_dates_df)
+
+        assert "18.80%" in result

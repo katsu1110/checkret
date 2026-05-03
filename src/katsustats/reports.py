@@ -29,6 +29,49 @@ _COMPARISON_KEYS = {
     "excess_return",
 }
 
+_MARKDOWN_SUMMARY_SPECS = [
+    ("Total Return", "total_return", "pct"),
+    ("CAGR", "cagr", "pct"),
+    ("Sharpe Ratio", "sharpe", "float"),
+    ("Sortino Ratio", "sortino", "float"),
+    ("Max Drawdown", "max_drawdown", "pct"),
+    ("Calmar Ratio", "calmar", "float"),
+    ("Volatility (ann.)", "volatility", "pct"),
+    ("Win Rate", "win_rate", "pct"),
+    ("Profit Factor", "profit_factor", "float"),
+    ("Best Day", "best_day", "pct"),
+    ("Worst Day", "worst_day", "pct"),
+    ("Avg Win", "avg_win", "pct"),
+    ("Avg Loss", "avg_loss", "pct"),
+    ("Daily VaR (95%)", "value_at_risk", "pct"),
+    ("CVaR (95%)", "cvar", "pct"),
+    ("Recovery Factor", "recovery_factor", "float"),
+    ("Skewness", "skewness", "float"),
+    ("Kurtosis", "kurtosis", "float"),
+    ("Best Month", "best_month", "pct"),
+    ("Worst Month", "worst_month", "pct"),
+    ("Best Year", "best_year", "pct"),
+    ("Worst Year", "worst_year", "pct"),
+    ("Positive Months", "positive_months_pct", "pct"),
+    ("Positive Years", "positive_years_pct", "pct"),
+]
+_MARKDOWN_COMPARISON_SPECS = [
+    ("Alpha", "alpha", "pct"),
+    ("Beta", "beta", "float"),
+    ("Correlation", "correlation", "float"),
+    ("Information Ratio", "information_ratio", "float"),
+    ("Excess Return", "excess_return", "pct"),
+]
+_MARKDOWN_HEADLINE_SPECS = [
+    ("Total Return", "total_return", "pct"),
+    ("CAGR", "cagr", "pct"),
+    ("Sharpe", "sharpe", "float"),
+    ("Max Drawdown", "max_drawdown", "pct"),
+    ("Volatility", "volatility", "pct"),
+    ("Win Rate", "win_rate", "pct"),
+]
+_PERIOD_LABELS = ("MTD", "QTD", "YTD", "1Y", "3Y", "5Y", "SI")
+
 
 def _print_df(df: pl.DataFrame, title: str = "") -> None:
     """Pretty-print a Polars DataFrame as a formatted table."""
@@ -147,6 +190,183 @@ def _df_to_records(df: pl.DataFrame) -> list[dict[str, object]]:
 def _json_dumps(payload: dict[str, object]) -> str:
     """Serialize report payload to pretty JSON."""
     return _json.dumps(payload, indent=2, ensure_ascii=False, allow_nan=False)
+
+
+def _markdown_escape(value: object) -> str:
+    """Escape Markdown table delimiters in string values."""
+    return str(value).replace("|", r"\|")
+
+
+def _format_markdown_value(value: object, fmt: str) -> str:
+    """Format a value for Markdown output."""
+    if value is None:
+        return "—"
+    if fmt == "pct":
+        return f"{float(value):.2%}"
+    if fmt == "float":
+        return f"{float(value):.2f}"
+    if fmt == "int":
+        return str(int(value))
+    return _markdown_escape(value)
+
+
+def _markdown_table(headers: list[str], rows: list[list[str]]) -> str:
+    """Build a Markdown table from headers and preformatted rows."""
+    header_row = "| " + " | ".join(headers) + " |"
+    separator_row = "| " + " | ".join(["---"] * len(headers)) + " |"
+    body_rows = ["| " + " | ".join(row) + " |" for row in rows]
+    return "\n".join([header_row, separator_row, *body_rows])
+
+
+def _markdown_report(payload: dict[str, object]) -> str:
+    """Render a structured payload as a Markdown backtest summary."""
+    metadata = payload["metadata"]
+    strategy = payload["strategy"]
+    benchmark = payload["benchmark"]
+    comparison = payload["comparison"]
+    drawdowns = payload["drawdowns"]
+    dow_stats = payload["day_of_week_stats"]
+    regime_analysis = payload["regime_analysis"]
+
+    summary = strategy["summary"]
+    lines = [
+        f"# {_markdown_escape(metadata['title'])} Backtest Summary",
+        "",
+        "## Overview",
+        f"- Period: {_markdown_escape(metadata['start_date'])} to {_markdown_escape(metadata['end_date'])}",
+        f"- Trading days: {_format_markdown_value(metadata['n_days'], 'int')}",
+        f"- Benchmark: {'Yes' if metadata['has_benchmark'] else 'No'}",
+        f"- Risk-free rate: {_format_markdown_value(metadata['rf'], 'pct')}",
+        f"- Periods per year: {_format_markdown_value(metadata['periods'], 'int')}",
+        "",
+        "## Headline Metrics",
+    ]
+    for label, key, fmt in _MARKDOWN_HEADLINE_SPECS:
+        lines.append(f"- {label}: {_format_markdown_value(summary.get(key), fmt)}")
+
+    lines.extend(["", "## Performance Metrics"])
+    perf_headers = ["Metric", "Strategy"]
+    if benchmark is not None:
+        perf_headers.append("Benchmark")
+    perf_rows: list[list[str]] = []
+    benchmark_summary = None if benchmark is None else benchmark["summary"]
+    for label, key, fmt in _MARKDOWN_SUMMARY_SPECS:
+        row = [
+            label,
+            _format_markdown_value(summary.get(key), fmt),
+        ]
+        if benchmark_summary is not None:
+            row.append(_format_markdown_value(benchmark_summary.get(key), fmt))
+        perf_rows.append(row)
+    if comparison is not None:
+        for label, key, fmt in _MARKDOWN_COMPARISON_SPECS:
+            perf_rows.append(
+                [
+                    label,
+                    _format_markdown_value(comparison.get(key), fmt),
+                    "—",
+                ]
+            )
+    lines.extend(
+        [_markdown_table(perf_headers, perf_rows), "", "## Period Performance"]
+    )
+
+    period_headers = ["Period", "Strategy"]
+    if benchmark is not None:
+        period_headers.append("Benchmark")
+    period_rows: list[list[str]] = []
+    benchmark_periods = None if benchmark is None else benchmark["period_performance"]
+    for label in _PERIOD_LABELS:
+        row = [
+            label,
+            _format_markdown_value(
+                strategy["period_performance"][label].get("strategy"), "pct"
+            ),
+        ]
+        if benchmark_periods is not None:
+            row.append(
+                _format_markdown_value(benchmark_periods[label].get("benchmark"), "pct")
+            )
+        period_rows.append(row)
+    lines.extend([_markdown_table(period_headers, period_rows), ""])
+
+    if drawdowns:
+        lines.extend(["## Top Drawdowns"])
+        drawdown_rows = [
+            [
+                _format_markdown_value(row.get("start"), "str"),
+                _format_markdown_value(row.get("trough"), "str"),
+                _format_markdown_value(row.get("recovery"), "str"),
+                _format_markdown_value(row.get("max_dd"), "pct"),
+                _format_markdown_value(row.get("drawdown_days"), "int"),
+                _format_markdown_value(row.get("recovery_days"), "int"),
+            ]
+            for row in drawdowns
+        ]
+        lines.extend(
+            [
+                _markdown_table(
+                    [
+                        "Start",
+                        "Trough",
+                        "Recovery",
+                        "Max DD",
+                        "Drawdown Days",
+                        "Recovery Days",
+                    ],
+                    drawdown_rows,
+                ),
+                "",
+            ]
+        )
+
+    if dow_stats:
+        lines.extend(["## Day-of-Week Statistics"])
+        dow_rows = [
+            [
+                _format_markdown_value(row.get("dow_name"), "str"),
+                _format_markdown_value(row.get("mean_return"), "pct"),
+                _format_markdown_value(row.get("win_rate"), "pct"),
+                _format_markdown_value(row.get("total_return"), "pct"),
+                _format_markdown_value(row.get("count"), "int"),
+            ]
+            for row in dow_stats
+        ]
+        lines.extend(
+            [
+                _markdown_table(
+                    ["Day", "Mean Return", "Win Rate", "Total Return", "Count"],
+                    dow_rows,
+                ),
+                "",
+            ]
+        )
+
+    if regime_analysis:
+        lines.extend(["## Regime Analysis"])
+        regime_rows = [
+            [
+                _format_markdown_value(row.get("regime"), "str"),
+                _format_markdown_value(row.get("n_days"), "int"),
+                _format_markdown_value(row.get("cagr"), "pct"),
+                _format_markdown_value(row.get("sharpe"), "float"),
+                _format_markdown_value(row.get("max_drawdown"), "pct"),
+                _format_markdown_value(row.get("win_rate"), "pct"),
+            ]
+            for row in regime_analysis
+        ]
+        lines.extend(
+            [
+                _markdown_table(
+                    ["Regime", "Days", "CAGR", "Sharpe", "Max Drawdown", "Win Rate"],
+                    regime_rows,
+                ),
+                "",
+            ]
+        )
+
+    lines.append("Generated by katsustats")
+    return "\n".join(lines).strip() + "\n"
 
 
 def _metadata_payload(
@@ -687,6 +907,65 @@ def json(
         benchmark = benchmark.sort("date")
 
     rendered = _json_dumps(
+        _report_payload(
+            returns,
+            benchmark,
+            title=title,
+            rf=rf,
+            periods=periods,
+        )
+    )
+
+    if output is not None:
+        with open(output, "w", encoding="utf-8") as f:
+            f.write(rendered)
+
+    return rendered
+
+
+def markdown(
+    returns: DataFrameLike,
+    benchmark: DataFrameLike | None = None,
+    rf: float = 0.0,
+    periods: int = 252,
+    title: str = "Strategy",
+    output: str | None = None,
+) -> str:
+    """
+    Generate a Markdown backtest summary for humans and AI agents.
+
+    Args:
+        returns: Polars or pandas DataFrame with ["date", "returns"] columns.
+        benchmark: Optional benchmark DataFrame with the same schema.
+        rf: Risk-free rate (annualized, default 0.0).
+        periods: Trading days per year (default 252).
+        title: Report title (default "Strategy").
+        output: File path to write Markdown. If None, only returns the Markdown.
+
+    Returns:
+        A Markdown string with overview, headline metrics, performance tables,
+        period performance, drawdowns, day-of-week statistics, and optional
+        regime analysis when a benchmark is provided.
+    """
+    returns = ensure_polars(returns, name="returns")
+    assert "date" in returns.columns, "returns must have a 'date' column"
+    assert "returns" in returns.columns, "returns must have a 'returns' column"
+    if benchmark is not None:
+        benchmark = ensure_polars(benchmark, name="benchmark")
+        assert "date" in benchmark.columns, "benchmark must have a 'date' column"
+        assert "returns" in benchmark.columns, "benchmark must have a 'returns' column"
+
+    returns = returns.sort("date")
+    assert returns["date"].n_unique() == returns.height, (
+        "Expected `returns` to have unique dates after `ensure_polars()` "
+        "normalization/compounding. If this fails, check the input for "
+        "duplicate same-date rows or investigate whether normalization "
+        "did not run as expected."
+    )
+    if benchmark is not None:
+        benchmark = benchmark.sort("date")
+
+    rendered = _markdown_report(
         _report_payload(
             returns,
             benchmark,
