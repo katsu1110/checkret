@@ -195,7 +195,15 @@ def _report_payload(
             if key in _COMPARISON_KEYS
         }
         benchmark_summary = stats.summary_metrics_raw(benchmark, None, rf, periods)
-        benchmark_periods = stats.period_performance_raw(returns, benchmark)
+        aligned_periods = stats.period_performance_raw(returns, benchmark)
+        strategy_periods = {
+            label: {"strategy": values["strategy"]}
+            for label, values in aligned_periods.items()
+        }
+        benchmark_periods = {
+            label: {"benchmark": values["benchmark"]}
+            for label, values in aligned_periods.items()
+        }
         regime_df = stats.regime_stats(returns, benchmark, periods=periods)
         regime_analysis = _df_to_records(regime_df.filter(pl.col("n_days") > 0))
 
@@ -637,6 +645,28 @@ def json(
 
     Returns:
         The rendered JSON string.
+
+        Top-level keys:
+            metadata: Report metadata including title, date range, trading-day
+                count, risk-free rate, periods, and whether a benchmark exists.
+            strategy: Dict with raw numeric `summary` metrics and
+                `period_performance` keyed by period label.
+            benchmark: None when no benchmark is provided; otherwise a dict with
+                benchmark `summary` metrics and benchmark-aligned
+                `period_performance` values keyed by period label.
+            comparison: None when no benchmark is provided; otherwise raw
+                strategy-vs-benchmark comparison metrics such as `alpha`,
+                `beta`, `correlation`, `information_ratio`, and
+                `excess_return`.
+            drawdowns: List of top drawdown rows.
+            day_of_week_stats: List of day-of-week summary rows.
+            regime_analysis: Empty list when no benchmark is provided or no
+                regime rows are available; otherwise a list of regime summary
+                rows.
+
+        When a benchmark is provided, both `strategy.period_performance` and
+        `benchmark.period_performance` are aligned to the common date overlap so
+        the period windows remain directly comparable.
     """
     returns = ensure_polars(returns, name="returns")
     assert "date" in returns.columns, "returns must have a 'date' column"

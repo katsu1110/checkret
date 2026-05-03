@@ -315,6 +315,21 @@ class TestJson:
         assert payload["comparison"] is not None
         assert "alpha" in payload["comparison"]
 
+    def test_with_benchmark_gaps_aligns_period_performance(
+        self, sample_df, benchmark_df
+    ):
+        gap_benchmark = benchmark_df.slice(5, benchmark_df.height - 5)
+
+        payload = json.loads(reports.json(sample_df, benchmark=gap_benchmark))
+        aligned = stats.period_performance_raw(sample_df, gap_benchmark)
+
+        assert payload["strategy"]["period_performance"]["SI"][
+            "strategy"
+        ] == pytest.approx(aligned["SI"]["strategy"])
+        assert payload["benchmark"]["period_performance"]["SI"][
+            "benchmark"
+        ] == pytest.approx(aligned["SI"]["benchmark"])
+
     def test_without_benchmark_uses_null_sections(self, sample_df):
         payload = json.loads(reports.json(sample_df))
         assert payload["benchmark"] is None
