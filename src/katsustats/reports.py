@@ -29,39 +29,6 @@ _COMPARISON_KEYS = {
     "excess_return",
 }
 
-_MARKDOWN_SUMMARY_SPECS = [
-    ("Total Return", "total_return", "pct"),
-    ("CAGR", "cagr", "pct"),
-    ("Sharpe Ratio", "sharpe", "float"),
-    ("Sortino Ratio", "sortino", "float"),
-    ("Max Drawdown", "max_drawdown", "pct"),
-    ("Calmar Ratio", "calmar", "float"),
-    ("Volatility (ann.)", "volatility", "pct"),
-    ("Win Rate", "win_rate", "pct"),
-    ("Profit Factor", "profit_factor", "float"),
-    ("Best Day", "best_day", "pct"),
-    ("Worst Day", "worst_day", "pct"),
-    ("Avg Win", "avg_win", "pct"),
-    ("Avg Loss", "avg_loss", "pct"),
-    ("Daily VaR (95%)", "value_at_risk", "pct"),
-    ("CVaR (95%)", "cvar", "pct"),
-    ("Recovery Factor", "recovery_factor", "float"),
-    ("Skewness", "skewness", "float"),
-    ("Kurtosis", "kurtosis", "float"),
-    ("Best Month", "best_month", "pct"),
-    ("Worst Month", "worst_month", "pct"),
-    ("Best Year", "best_year", "pct"),
-    ("Worst Year", "worst_year", "pct"),
-    ("Positive Months", "positive_months_pct", "pct"),
-    ("Positive Years", "positive_years_pct", "pct"),
-]
-_MARKDOWN_COMPARISON_SPECS = [
-    ("Alpha", "alpha", "pct"),
-    ("Beta", "beta", "float"),
-    ("Correlation", "correlation", "float"),
-    ("Information Ratio", "information_ratio", "float"),
-    ("Excess Return", "excess_return", "pct"),
-]
 _MARKDOWN_HEADLINE_SPECS = [
     ("Total Return", "total_return", "pct"),
     ("CAGR", "cagr", "pct"),
@@ -70,7 +37,6 @@ _MARKDOWN_HEADLINE_SPECS = [
     ("Volatility", "volatility", "pct"),
     ("Win Rate", "win_rate", "pct"),
 ]
-_PERIOD_LABELS = ("MTD", "QTD", "YTD", "1Y", "3Y", "5Y", "SI")
 
 
 def _print_df(df: pl.DataFrame, title: str = "") -> None:
@@ -166,6 +132,30 @@ def _df_to_html_table(df: pl.DataFrame, *, css_class: str = "metrics") -> str:
     return f'<table class="{css_class}">{"".join(rows_html)}</table>'
 
 
+def _validate_and_sort(
+    returns: DataFrameLike,
+    benchmark: DataFrameLike | None,
+) -> tuple[pl.DataFrame, pl.DataFrame | None]:
+    """Normalise, validate, and sort inputs; return (returns, benchmark) as Polars frames."""
+    returns = ensure_polars(returns, name="returns")
+    assert "date" in returns.columns, "returns must have a 'date' column"
+    assert "returns" in returns.columns, "returns must have a 'returns' column"
+    if benchmark is not None:
+        benchmark = ensure_polars(benchmark, name="benchmark")
+        assert "date" in benchmark.columns, "benchmark must have a 'date' column"
+        assert "returns" in benchmark.columns, "benchmark must have a 'returns' column"
+    returns = returns.sort("date")
+    assert returns["date"].n_unique() == returns.height, (
+        "Expected `returns` to have unique dates after `ensure_polars()` "
+        "normalization/compounding. If this fails, check the input for "
+        "duplicate same-date rows or investigate whether normalization "
+        "did not run as expected."
+    )
+    if benchmark is not None:
+        benchmark = benchmark.sort("date")
+    return returns, benchmark
+
+
 def _json_safe_value(value: object) -> object:
     """Convert Python / Polars values into JSON-safe primitives."""
     if value is None:
@@ -250,7 +240,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         perf_headers.append("Benchmark")
     perf_rows: list[list[str]] = []
     benchmark_summary = None if benchmark is None else benchmark["summary"]
-    for label, key, fmt in _MARKDOWN_SUMMARY_SPECS:
+    for label, key, fmt in stats._SUMMARY_METRIC_SPECS:
         row = [
             label,
             _format_markdown_value(summary.get(key), fmt),
@@ -259,7 +249,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
             row.append(_format_markdown_value(benchmark_summary.get(key), fmt))
         perf_rows.append(row)
     if comparison is not None:
-        for label, key, fmt in _MARKDOWN_COMPARISON_SPECS:
+        for label, key, fmt in stats._COMPARISON_METRIC_SPECS:
             perf_rows.append(
                 [
                     label,
@@ -276,7 +266,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         period_headers.append("Benchmark")
     period_rows: list[list[str]] = []
     benchmark_periods = None if benchmark is None else benchmark["period_performance"]
-    for label in _PERIOD_LABELS:
+    for label in stats._PERIOD_LABELS:
         row = [
             label,
             _format_markdown_value(
@@ -399,9 +389,6 @@ def _report_payload(
     periods: int,
 ) -> dict[str, object]:
     """Build an AI-friendly structured report payload."""
-    strategy_summary = stats.summary_metrics_raw(returns, None, rf, periods)
-    strategy_periods = stats.period_performance_raw(returns, None)
-
     benchmark_summary: dict[str, float] | None = None
     benchmark_periods: dict[str, dict[str, float]] | None = None
     comparison: dict[str, float] | None = None
@@ -409,6 +396,9 @@ def _report_payload(
 
     if benchmark is not None:
         combined_summary = stats.summary_metrics_raw(returns, benchmark, rf, periods)
+        strategy_summary = {
+            k: v for k, v in combined_summary.items() if k not in _COMPARISON_KEYS
+        }
         comparison = {
             key: _json_safe_value(value)
             for key, value in combined_summary.items()
@@ -416,16 +406,16 @@ def _report_payload(
         }
         benchmark_summary = stats.summary_metrics_raw(benchmark, None, rf, periods)
         aligned_periods = stats.period_performance_raw(returns, benchmark)
-        strategy_periods = {
-            label: {"strategy": values["strategy"]}
-            for label, values in aligned_periods.items()
-        }
-        benchmark_periods = {
-            label: {"benchmark": values["benchmark"]}
-            for label, values in aligned_periods.items()
-        }
+        strategy_periods: dict[str, dict[str, object]] = {}
+        benchmark_periods = {}
+        for label, values in aligned_periods.items():
+            strategy_periods[label] = {"strategy": values["strategy"]}
+            benchmark_periods[label] = {"benchmark": values["benchmark"]}
         regime_df = stats.regime_stats(returns, benchmark, periods=periods)
         regime_analysis = _df_to_records(regime_df.filter(pl.col("n_days") > 0))
+    else:
+        strategy_summary = stats.summary_metrics_raw(returns, None, rf, periods)
+        strategy_periods = stats.period_performance_raw(returns, None)
 
     return {
         "metadata": _metadata_payload(
@@ -729,27 +719,7 @@ def full(
     Returns:
         dict with keys: "metrics", "drawdowns", "dow_stats", "figures"
     """
-    # Validate inputs
-    returns = ensure_polars(returns, name="returns")
-    assert "date" in returns.columns, "returns must have a 'date' column"
-    assert "returns" in returns.columns, "returns must have a 'returns' column"
-    if benchmark is not None:
-        benchmark = ensure_polars(benchmark, name="benchmark")
-        assert "date" in benchmark.columns, "benchmark must have a 'date' column"
-        assert "returns" in benchmark.columns, "benchmark must have a 'returns' column"
-
-    # Sort by date after normalization.
-    # ensure_polars() already compounds duplicate same-date rows with a warning,
-    # so this uniqueness check is a defensive sanity check.
-    returns = returns.sort("date")
-    assert returns["date"].n_unique() == returns.height, (
-        "returns dates are expected to be unique after ensure_polars() normalization "
-        "and compounding of duplicate same-date rows; if duplicates still exist, "
-        "this indicates an unexpected post-normalization state or a bug. "
-        "Please report this issue if it persists."
-    )
-    if benchmark is not None:
-        benchmark = benchmark.sort("date")
+    returns, benchmark = _validate_and_sort(returns, benchmark)
 
     # ── 1. Metrics Summary ──────────────────────────────────────────
     summary = stats.summary_metrics_raw(returns, benchmark, rf, periods)
@@ -888,23 +858,7 @@ def json(
         `benchmark.period_performance` are aligned to the common date overlap so
         the period windows remain directly comparable.
     """
-    returns = ensure_polars(returns, name="returns")
-    assert "date" in returns.columns, "returns must have a 'date' column"
-    assert "returns" in returns.columns, "returns must have a 'returns' column"
-    if benchmark is not None:
-        benchmark = ensure_polars(benchmark, name="benchmark")
-        assert "date" in benchmark.columns, "benchmark must have a 'date' column"
-        assert "returns" in benchmark.columns, "benchmark must have a 'returns' column"
-
-    returns = returns.sort("date")
-    assert returns["date"].n_unique() == returns.height, (
-        "Expected `returns` to have unique dates after `ensure_polars()` "
-        "normalization/compounding. If this fails, check the input for "
-        "duplicate same-date rows or investigate whether normalization "
-        "did not run as expected."
-    )
-    if benchmark is not None:
-        benchmark = benchmark.sort("date")
+    returns, benchmark = _validate_and_sort(returns, benchmark)
 
     rendered = _json_dumps(
         _report_payload(
@@ -947,23 +901,7 @@ def markdown(
         period performance, drawdowns, day-of-week statistics, and optional
         regime analysis when a benchmark is provided.
     """
-    returns = ensure_polars(returns, name="returns")
-    assert "date" in returns.columns, "returns must have a 'date' column"
-    assert "returns" in returns.columns, "returns must have a 'returns' column"
-    if benchmark is not None:
-        benchmark = ensure_polars(benchmark, name="benchmark")
-        assert "date" in benchmark.columns, "benchmark must have a 'date' column"
-        assert "returns" in benchmark.columns, "benchmark must have a 'returns' column"
-
-    returns = returns.sort("date")
-    assert returns["date"].n_unique() == returns.height, (
-        "Expected `returns` to have unique dates after `ensure_polars()` "
-        "normalization/compounding. If this fails, check the input for "
-        "duplicate same-date rows or investigate whether normalization "
-        "did not run as expected."
-    )
-    if benchmark is not None:
-        benchmark = benchmark.sort("date")
+    returns, benchmark = _validate_and_sort(returns, benchmark)
 
     rendered = _markdown_report(
         _report_payload(
@@ -991,27 +929,7 @@ def _build_html(
     output: str | None,
 ) -> str:
     """Internal: build the HTML report string."""
-    # Validate
-    returns = ensure_polars(returns, name="returns")
-    assert "date" in returns.columns, "returns must have a 'date' column"
-    assert "returns" in returns.columns, "returns must have a 'returns' column"
-    if benchmark is not None:
-        benchmark = ensure_polars(benchmark, name="benchmark")
-        assert "date" in benchmark.columns, "benchmark must have a 'date' column"
-        assert "returns" in benchmark.columns, "benchmark must have a 'returns' column"
-
-    # Sort by date after normalization.
-    # ensure_polars() already compounds duplicate same-date rows with a warning,
-    # so this uniqueness check is a defensive sanity check.
-    returns = returns.sort("date")
-    assert returns["date"].n_unique() == returns.height, (
-        "Expected `returns` to have unique dates after `ensure_polars()` "
-        "normalization/compounding. If this fails, check the input for "
-        "duplicate same-date rows or investigate whether normalization "
-        "did not run as expected."
-    )
-    if benchmark is not None:
-        benchmark = benchmark.sort("date")
+    returns, benchmark = _validate_and_sort(returns, benchmark)
 
     # ── Metadata ────────────────────────────────────────────────────
     dates = returns.get_column("date")

@@ -55,33 +55,22 @@ def _cmd_report(args: argparse.Namespace) -> None:
             args.benchmark_returns_col,
         )
 
-    default_suffix = {"html": ".html", "json": ".json", "markdown": ".md"}[args.format]
-    output = args.output or str(Path(args.file).with_suffix(default_suffix))
-
-    if args.format == "json":
-        reports.json(
-            df,
-            benchmark=benchmark,
-            rf=args.rf,
-            title=args.title,
-            output=output,
-        )
-    elif args.format == "markdown":
-        reports.markdown(
-            df,
-            benchmark=benchmark,
-            rf=args.rf,
-            title=args.title,
-            output=output,
-        )
-    else:
-        reports.html(
-            df,
-            benchmark=benchmark,
-            rf=args.rf,
-            title=args.title,
-            output=output,
-        )
+    _format_fn = {
+        "html": reports.html,
+        "json": reports.json,
+        "markdown": reports.markdown,
+    }
+    _format_suffix = {"html": ".html", "json": ".json", "markdown": ".md"}
+    output = args.output or str(
+        Path(args.file).with_suffix(_format_suffix[args.format])
+    )
+    _format_fn[args.format](
+        df,
+        benchmark=benchmark,
+        rf=args.rf,
+        title=args.title,
+        output=output,
+    )
     print(f"Report written to {output}")
 
 
