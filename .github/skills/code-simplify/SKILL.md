@@ -53,10 +53,14 @@ Refactor toward the existing katsustats style:
 
 ### 4. Verify nothing changed semantically
 
-After simplifying, confirm the code still behaves the same by running the repository checks already used in CI:
-- `uv run ruff check src/ tests/`
-- `uv run ruff format --check src/ tests/`
-- `uv run pytest tests/ -v`
+After simplifying, run validation that actually covers the files you changed.
+
+- If the simplification touched Python code under `src/` or `tests/`, run the repository checks already used in CI:
+  - `uv run ruff check src/ tests/`
+  - `uv run ruff format --check src/ tests/`
+  - `uv run pytest tests/ -v`
+- If the simplification touched other files (for example docs, workflows, or other skills), run any relevant repository validation for those files if available.
+- Do not claim the refactor was fully verified if your commands did not cover every changed file; instead, say exactly which checks you ran and which edited files had no automated validation.
 
 ### 5. Summarize only meaningful refinements
 
