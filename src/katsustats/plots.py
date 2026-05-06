@@ -802,8 +802,9 @@ def plot_monte_carlo(
     fig, ax = plt.subplots(figsize=figsize)
     _apply_style(ax, fig)
 
-    # Individual paths — subsample to keep the chart readable
-    stride = max(1, paths_matrix.shape[1] // 200)
+    # Individual paths — subsample to keep the chart readable (cap at 200 lines)
+    n_sims = paths_matrix.shape[1]
+    stride = max(1, (n_sims + 199) // 200)
     subsampled = paths_matrix[:, ::stride]
     for i in range(subsampled.shape[1]):
         ax.plot(

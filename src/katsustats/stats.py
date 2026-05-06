@@ -1040,7 +1040,22 @@ def _distribution_stats(
 ) -> dict[str, float]:
     """Summary statistics of a 1-D array, dropping NaNs."""
     a = arr[~np.isnan(arr)]
-    result: dict[str, float] = {
+    nan = float("nan")
+    if len(a) == 0:
+        result: dict[str, float] = {
+            "min": nan,
+            "max": nan,
+            "mean": nan,
+            "median": nan,
+            "std": nan,
+            "percentile_5": nan,
+            "percentile_95": nan,
+        }
+        if with_quartiles:
+            result["percentile_25"] = nan
+            result["percentile_75"] = nan
+        return result
+    result = {
         "min": float(np.min(a)),
         "max": float(np.max(a)),
         "mean": float(np.mean(a)),

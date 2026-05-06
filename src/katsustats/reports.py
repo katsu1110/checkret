@@ -13,6 +13,7 @@ import datetime as _dt
 import io
 import json as _json
 import math
+import random as _random
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -780,8 +781,8 @@ def full(
         mc_seed: Random seed for reproducibility.
 
     Returns:
-        dict with keys: "metrics", "drawdowns", "dow_stats", "figures",
-        and "monte_carlo" (when monte_carlo=True).
+        dict with keys: "summary", "metrics", "drawdowns", "dow_stats", "figures",
+        and "monte_carlo" (the summary dict when monte_carlo=True, else None).
     """
     returns, benchmark = _validate_and_sort(returns, benchmark)
 
@@ -840,13 +841,17 @@ def full(
 
     mc_summary = None
     if monte_carlo:
-        mc_paths = stats.monte_carlo_paths(returns, sims=mc_sims, seed=mc_seed)
+        # Pin a seed so plots and summary are derived from the same simulation.
+        effective_seed = (
+            mc_seed if mc_seed is not None else _random.randint(0, 2**31 - 1)
+        )
+        mc_paths = stats.monte_carlo_paths(returns, sims=mc_sims, seed=effective_seed)
         _handle_fig(
             "monte_carlo",
             plots.plot_monte_carlo(
                 returns,
                 sims=mc_sims,
-                seed=mc_seed,
+                seed=effective_seed,
                 figsize=figsize_main,
                 _paths_df=mc_paths,
             ),
@@ -856,7 +861,7 @@ def full(
             plots.plot_monte_carlo_distribution(
                 returns,
                 sims=mc_sims,
-                seed=mc_seed,
+                seed=effective_seed,
                 figsize=figsize_main,
                 _paths_df=mc_paths,
             ),
@@ -868,7 +873,7 @@ def full(
             goal=mc_goal,
             rf=rf,
             periods=periods,
-            seed=mc_seed,
+            seed=effective_seed,
         )
 
     return {
@@ -904,7 +909,7 @@ def html(
         periods: Trading days per year (default 252).
         title: Report title (default "Strategy").
         output: File path to write HTML. If None, only returns the HTML string.
-        monte_carlo: Whether to include Monte Carlo section (default True).
+        monte_carlo: Whether to include Monte Carlo section (default False).
         mc_sims: Number of Monte Carlo simulations (default 1000).
         mc_bust: Drawdown threshold for bust probability (e.g. -0.2).
         mc_goal: Return threshold for goal probability (e.g. 0.5).
@@ -957,6 +962,11 @@ def json(
         periods: Trading days per year (default 252).
         title: Report title (default "Strategy").
         output: File path to write JSON. If None, only returns the JSON string.
+        monte_carlo: Whether to include a Monte Carlo simulation block (default False).
+        mc_sims: Number of Monte Carlo simulations (default 1000).
+        mc_bust: Drawdown threshold for bust probability (e.g. -0.2).
+        mc_goal: Return threshold for goal probability (e.g. 0.5).
+        mc_seed: Random seed for reproducibility.
 
     Returns:
         The rendered JSON string.
@@ -978,6 +988,9 @@ def json(
             regime_analysis: Empty list when no benchmark is provided or no
                 regime rows are available; otherwise a list of regime summary
                 rows.
+            monte_carlo: None when monte_carlo=False; otherwise a dict with
+                terminal, maxdd, sharpe, and cagr distribution dicts, plus
+                bust_probability, goal_probability, sims, and seed.
 
         When a benchmark is provided, both `strategy.period_performance` and
         `benchmark.period_performance` are aligned to the common date overlap so
@@ -1030,11 +1043,16 @@ def markdown(
         periods: Trading days per year (default 252).
         title: Report title (default "Strategy").
         output: File path to write Markdown. If None, only returns the Markdown.
+        monte_carlo: Whether to include a Monte Carlo section (default False).
+        mc_sims: Number of Monte Carlo simulations (default 1000).
+        mc_bust: Drawdown threshold for bust probability (e.g. -0.2).
+        mc_goal: Return threshold for goal probability (e.g. 0.5).
+        mc_seed: Random seed for reproducibility.
 
     Returns:
         A Markdown string with overview, headline metrics, performance tables,
-        period performance, drawdowns, day-of-week statistics, and optional
-        regime analysis when a benchmark is provided.
+        period performance, drawdowns, day-of-week statistics, optional regime
+        analysis, and optional Monte Carlo section when monte_carlo=True.
     """
     returns, benchmark = _validate_and_sort(returns, benchmark)
 
@@ -1205,15 +1223,27 @@ def _build_html(
 
     # ── Monte Carlo Analysis (full-width) ───────────────────────────
     if monte_carlo:
-        mc_paths = stats.monte_carlo_paths(returns, sims=mc_sims, seed=mc_seed)
+        # Pin a seed so plots and summary are derived from the same simulation.
+        effective_seed = (
+            mc_seed if mc_seed is not None else _random.randint(0, 2**31 - 1)
+        )
+        mc_paths = stats.monte_carlo_paths(returns, sims=mc_sims, seed=effective_seed)
         mc_b64 = _fig_to_base64(
             plots.plot_monte_carlo(
-                returns, sims=mc_sims, seed=mc_seed, figsize=(8, 4), _paths_df=mc_paths
+                returns,
+                sims=mc_sims,
+                seed=effective_seed,
+                figsize=(8, 4),
+                _paths_df=mc_paths,
             )
         )
         mc_dist_b64 = _fig_to_base64(
             plots.plot_monte_carlo_distribution(
-                returns, sims=mc_sims, seed=mc_seed, figsize=(8, 4), _paths_df=mc_paths
+                returns,
+                sims=mc_sims,
+                seed=effective_seed,
+                figsize=(8, 4),
+                _paths_df=mc_paths,
             )
         )
         mc_sum = stats.monte_carlo_summary(
@@ -1223,7 +1253,7 @@ def _build_html(
             goal=mc_goal,
             rf=rf,
             periods=periods,
-            seed=mc_seed,
+            seed=effective_seed,
         )
         t = mc_sum["terminal"]
         md = mc_sum["maxdd"]
