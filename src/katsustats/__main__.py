@@ -152,7 +152,6 @@ def main() -> None:
     p_report.add_argument(
         "--no-monte-carlo",
         action="store_false",
-        default=False,
         dest="monte_carlo",
         help="Disable Monte Carlo simulation section.",
     )
