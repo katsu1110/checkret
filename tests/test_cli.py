@@ -325,3 +325,83 @@ class TestReportCommand:
             main()
         assert "pnl" in str(exc_info.value)
         assert "--returns-col" in str(exc_info.value)
+
+
+# ---------------------------------------------------------------------------
+# Monte Carlo CLI flags
+# ---------------------------------------------------------------------------
+
+
+class TestMonteCarloCliFlags:
+    def test_monte_carlo_off_by_default(
+        self, csv_file: Path, tmp_path: Path, monkeypatch
+    ):
+        out = tmp_path / "out.json"
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "katsustats",
+                "report",
+                str(csv_file),
+                "--format",
+                "json",
+                "-o",
+                str(out),
+            ],
+        )
+        main()
+        payload = json.loads(out.read_text(encoding="utf-8"))
+        assert payload["monte_carlo"] is None
+
+    def test_mc_sims_and_seed_produce_deterministic_output(
+        self, csv_file: Path, tmp_path: Path, monkeypatch
+    ):
+        out1 = tmp_path / "out1.json"
+        out2 = tmp_path / "out2.json"
+        args_base = [
+            "katsustats",
+            "report",
+            str(csv_file),
+            "--format",
+            "json",
+            "--mc-sims",
+            "50",
+            "--mc-seed",
+            "99",
+        ]
+        monkeypatch.setattr("sys.argv", args_base + ["-o", str(out1)])
+        main()
+        monkeypatch.setattr("sys.argv", args_base + ["-o", str(out2)])
+        main()
+        j1 = json.loads(out1.read_text(encoding="utf-8"))
+        j2 = json.loads(out2.read_text(encoding="utf-8"))
+        assert j1["monte_carlo"] == j2["monte_carlo"]
+
+    def test_mc_bust_and_goal_flags(self, csv_file: Path, tmp_path: Path, monkeypatch):
+        out = tmp_path / "out.json"
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "katsustats",
+                "report",
+                str(csv_file),
+                "--format",
+                "json",
+                "--monte-carlo",
+                "--mc-sims",
+                "50",
+                "--mc-seed",
+                "0",
+                "--mc-bust",
+                "-0.05",
+                "--mc-goal",
+                "0.05",
+                "-o",
+                str(out),
+            ],
+        )
+        main()
+        payload = json.loads(out.read_text(encoding="utf-8"))
+        mc = payload["monte_carlo"]
+        assert mc["bust_probability"] is not None
+        assert mc["goal_probability"] is not None

@@ -368,3 +368,79 @@ class TestPlotReturnsVsBenchmark:
     def test_accepts_pandas_inputs(self, sample_pandas_df, benchmark_pandas_df):
         fig = plots.plot_returns_vs_benchmark(sample_pandas_df, benchmark_pandas_df)
         assert isinstance(fig, Figure)
+
+
+# ---------------------------------------------------------------------------
+# plot_monte_carlo
+# ---------------------------------------------------------------------------
+
+
+class TestPlotMonteCarlo:
+    def test_returns_figure(self, sample_df):
+        fig = plots.plot_monte_carlo(sample_df, sims=50, seed=0)
+        assert isinstance(fig, Figure)
+
+    def test_has_one_axes(self, sample_df):
+        fig = plots.plot_monte_carlo(sample_df, sims=50, seed=0)
+        assert len(fig.axes) == 1
+
+    def test_has_median_and_original_lines(self, sample_df):
+        fig = plots.plot_monte_carlo(sample_df, sims=50, seed=0)
+        ax = fig.axes[0]
+        lines = [ln for ln in ax.get_lines() if len(ln.get_xdata()) > 0]
+        assert len(lines) >= 2
+
+    def test_subsamples_paths_above_200(self, sample_df):
+        fig = plots.plot_monte_carlo(sample_df, sims=300, seed=0)
+        assert isinstance(fig, Figure)
+
+    def test_accepts_pandas_input(self, sample_pandas_df):
+        fig = plots.plot_monte_carlo(sample_pandas_df, sims=20, seed=0)
+        assert isinstance(fig, Figure)
+
+    def test_custom_confidence_level(self, sample_df):
+        fig = plots.plot_monte_carlo(sample_df, sims=50, seed=0, confidence_level=0.80)
+        assert isinstance(fig, Figure)
+
+    def test_custom_figsize(self, sample_df):
+        fig = plots.plot_monte_carlo(sample_df, sims=20, seed=0, figsize=(8, 3))
+        assert fig.get_size_inches()[0] == pytest.approx(8.0)
+
+
+# ---------------------------------------------------------------------------
+# plot_monte_carlo_distribution
+# ---------------------------------------------------------------------------
+
+
+class TestPlotMonteCarloDistribution:
+    def test_returns_figure(self, sample_df):
+        fig = plots.plot_monte_carlo_distribution(sample_df, sims=50, seed=0)
+        assert isinstance(fig, Figure)
+
+    def test_has_one_axes(self, sample_df):
+        fig = plots.plot_monte_carlo_distribution(sample_df, sims=50, seed=0)
+        assert len(fig.axes) == 1
+
+    def test_has_vertical_percentile_lines(self, sample_df):
+        fig = plots.plot_monte_carlo_distribution(sample_df, sims=50, seed=0)
+        ax = fig.axes[0]
+        vlines = [
+            ln
+            for ln in ax.get_lines()
+            if len(ln.get_xdata()) == 2 and ln.get_xdata()[0] == ln.get_xdata()[1]
+        ]
+        assert len(vlines) >= 3
+
+    def test_accepts_pandas_input(self, sample_pandas_df):
+        fig = plots.plot_monte_carlo_distribution(sample_pandas_df, sims=20, seed=0)
+        assert isinstance(fig, Figure)
+
+    def test_custom_bins(self, sample_df):
+        fig = plots.plot_monte_carlo_distribution(sample_df, sims=50, seed=0, bins=20)
+        assert isinstance(fig, Figure)
+
+    def test_custom_figsize(self, sample_df):
+        fig = plots.plot_monte_carlo_distribution(
+            sample_df, sims=20, seed=0, figsize=(8, 3)
+        )
+        assert fig.get_size_inches()[0] == pytest.approx(8.0)

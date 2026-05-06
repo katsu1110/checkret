@@ -1195,3 +1195,133 @@ class TestPeriodPerformance:
             "5Y",
             "SI",
         ]
+
+
+# ---------------------------------------------------------------------------
+# Monte Carlo
+# ---------------------------------------------------------------------------
+
+
+class TestMonteCarloPaths:
+    def test_returns_polars_dataframe(self, sample_df):
+        result = stats.monte_carlo_paths(sample_df, sims=50, seed=0)
+        assert isinstance(result, pl.DataFrame)
+
+    def test_shape_is_n_periods_plus_step_col(self, sample_df):
+        result = stats.monte_carlo_paths(sample_df, sims=50, seed=0)
+        n = len(sample_df)
+        assert result.height == n
+        assert "step" in result.columns
+        assert len(result.columns) == 51  # step + 50 sims
+
+    def test_step_column_is_1_indexed(self, sample_df):
+        result = stats.monte_carlo_paths(sample_df, sims=10, seed=0)
+        assert result.get_column("step").to_list() == list(range(1, len(sample_df) + 1))
+
+    def test_sim_0_matches_original_cumulative(self, sample_df):
+        import numpy as np
+
+        from katsustats._dataframe import ensure_polars
+
+        df = ensure_polars(sample_df)
+        r = df.get_column("returns").to_numpy()
+        expected = (np.cumprod(1 + r) - 1).tolist()
+        result = stats.monte_carlo_paths(sample_df, sims=10, seed=42)
+        actual = result.get_column("sim_0").to_list()
+        assert len(actual) == len(expected)
+        for a, e in zip(actual, expected):
+            assert abs(a - e) < 1e-12
+
+    def test_seed_determinism(self, sample_df):
+        r1 = stats.monte_carlo_paths(sample_df, sims=20, seed=7)
+        r2 = stats.monte_carlo_paths(sample_df, sims=20, seed=7)
+        assert r1.equals(r2)
+
+    def test_different_seeds_differ(self, sample_df):
+        r1 = stats.monte_carlo_paths(sample_df, sims=20, seed=1)
+        r2 = stats.monte_carlo_paths(sample_df, sims=20, seed=2)
+        assert not r1.equals(r2)
+
+    def test_pandas_input(self, sample_pandas_df):
+        result = stats.monte_carlo_paths(sample_pandas_df, sims=10, seed=0)
+        assert isinstance(result, pl.DataFrame)
+
+    def test_sims_1_returns_only_original(self, sample_df):
+        result = stats.monte_carlo_paths(sample_df, sims=1, seed=0)
+        assert result.columns == ["step", "sim_0"]
+
+    def test_sims_must_be_positive(self, sample_df):
+        with pytest.raises(AssertionError):
+            stats.monte_carlo_paths(sample_df, sims=0)
+
+
+class TestMonteCarloSummary:
+    def test_returns_dict(self, sample_df):
+        result = stats.monte_carlo_summary(sample_df, sims=50, seed=0)
+        assert isinstance(result, dict)
+
+    def test_top_level_keys(self, sample_df):
+        result = stats.monte_carlo_summary(sample_df, sims=50, seed=0)
+        assert set(result.keys()) == {
+            "terminal",
+            "maxdd",
+            "sharpe",
+            "cagr",
+            "bust_probability",
+            "goal_probability",
+            "sims",
+            "seed",
+        }
+
+    def test_terminal_has_quartiles(self, sample_df):
+        result = stats.monte_carlo_summary(sample_df, sims=50, seed=0)
+        t = result["terminal"]
+        for key in (
+            "min",
+            "max",
+            "mean",
+            "median",
+            "std",
+            "percentile_5",
+            "percentile_25",
+            "percentile_75",
+            "percentile_95",
+        ):
+            assert key in t
+
+    def test_percentile_ordering(self, sample_df):
+        result = stats.monte_carlo_summary(sample_df, sims=100, seed=0)
+        t = result["terminal"]
+        assert t["percentile_5"] <= t["median"] <= t["percentile_95"]
+        md = result["maxdd"]
+        assert md["percentile_5"] <= md["median"] <= md["percentile_95"]
+
+    def test_bust_and_goal_none_by_default(self, sample_df):
+        result = stats.monte_carlo_summary(sample_df, sims=50, seed=0)
+        assert result["bust_probability"] is None
+        assert result["goal_probability"] is None
+
+    def test_bust_probability_in_range(self, sample_df):
+        result = stats.monte_carlo_summary(sample_df, sims=100, bust=-0.01, seed=0)
+        assert 0.0 <= result["bust_probability"] <= 1.0
+
+    def test_goal_probability_in_range(self, sample_df):
+        result = stats.monte_carlo_summary(sample_df, sims=100, goal=0.01, seed=0)
+        assert 0.0 <= result["goal_probability"] <= 1.0
+
+    def test_seed_determinism(self, sample_df):
+        r1 = stats.monte_carlo_summary(sample_df, sims=50, seed=42)
+        r2 = stats.monte_carlo_summary(sample_df, sims=50, seed=42)
+        assert r1 == r2
+
+    def test_sims_recorded(self, sample_df):
+        result = stats.monte_carlo_summary(sample_df, sims=77, seed=0)
+        assert result["sims"] == 77
+
+    def test_seed_recorded(self, sample_df):
+        result = stats.monte_carlo_summary(sample_df, sims=10, seed=99)
+        assert result["seed"] == 99
+
+    def test_pandas_input(self, sample_pandas_df):
+        result = stats.monte_carlo_summary(sample_pandas_df, sims=10, seed=0)
+        assert isinstance(result, dict)
