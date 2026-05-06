@@ -183,6 +183,11 @@ def _json_dumps(payload: dict[str, object]) -> str:
     return _json.dumps(payload, indent=2, ensure_ascii=False, allow_nan=False)
 
 
+def _resolve_mc_seed(seed: int | None) -> int:
+    """Return seed unchanged or generate one, so plots and summary share the same draw."""
+    return seed if seed is not None else _random.randint(0, 2**31 - 1)
+
+
 def _markdown_escape(value: object) -> str:
     """Escape Markdown table delimiters in string values."""
     return str(value).replace("|", r"\|")
@@ -841,10 +846,7 @@ def full(
 
     mc_summary = None
     if monte_carlo:
-        # Pin a seed so plots and summary are derived from the same simulation.
-        effective_seed = (
-            mc_seed if mc_seed is not None else _random.randint(0, 2**31 - 1)
-        )
+        effective_seed = _resolve_mc_seed(mc_seed)
         mc_paths = stats.monte_carlo_paths(returns, sims=mc_sims, seed=effective_seed)
         _handle_fig(
             "monte_carlo",
@@ -1223,10 +1225,7 @@ def _build_html(
 
     # ── Monte Carlo Analysis (full-width) ───────────────────────────
     if monte_carlo:
-        # Pin a seed so plots and summary are derived from the same simulation.
-        effective_seed = (
-            mc_seed if mc_seed is not None else _random.randint(0, 2**31 - 1)
-        )
+        effective_seed = _resolve_mc_seed(mc_seed)
         mc_paths = stats.monte_carlo_paths(returns, sims=mc_sims, seed=effective_seed)
         mc_b64 = _fig_to_base64(
             plots.plot_monte_carlo(
