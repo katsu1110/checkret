@@ -345,6 +345,21 @@ class TestPlotDowReturns:
         assert colors[3] == neg
         assert colors[4] == neg
 
+    def test_twin_axis_present(self, sample_df):
+        """Win-rate panel has a secondary y-axis for the total return overlay."""
+        fig = plots.plot_dow_returns(sample_df)
+        assert len(fig.axes) == 3  # box ax, win-rate ax, twin ax
+
+    def test_legend_contains_both_series(self, sample_df):
+        """Legend on the win-rate panel labels both Win Rate and Total Return."""
+        fig = plots.plot_dow_returns(sample_df)
+        win_rate_ax = fig.axes[1]
+        legend = win_rate_ax.get_legend()
+        assert legend is not None
+        labels = [t.get_text() for t in legend.get_texts()]
+        assert "Win Rate" in labels
+        assert "Total Return" in labels
+
     def test_weekends_shown_when_present(self):
         """Boxes for Sat/Sun appear when the data includes weekend dates."""
         dates = [

@@ -708,7 +708,7 @@ def plot_returns_vs_benchmark(
 
 
 def plot_dow_returns(df: DataFrameLike, figsize: tuple = (10, 5)) -> Figure:
-    """Day-of-week return distribution (box plot) and win rate."""
+    """Day-of-week return distribution (box plot), win rate, and total return overlay."""
     df = ensure_polars(df)
     dow_df = stats.day_of_week_stats(df)
 
