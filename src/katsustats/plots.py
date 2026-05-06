@@ -104,7 +104,7 @@ def _returns_by_day_of_week(df: pl.DataFrame, dow_order: list[int]) -> list[np.n
     ]
 
 
-def _color_boxplot_by_median(bp) -> None:
+def _color_boxplot_by_median(bp: dict) -> None:
     """Color boxplot patches green/red based on the median line."""
     for patch, median_line in zip(bp["boxes"], bp["medians"]):
         median = median_line.get_ydata()[0]
