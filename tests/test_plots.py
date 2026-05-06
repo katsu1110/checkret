@@ -320,8 +320,33 @@ class TestPlotDowReturns:
         fig = plots.plot_dow_returns(sample_df, figsize=(8, 4))
         assert isinstance(fig, Figure)
 
+    def test_box_colors_reflect_median_sign(self):
+        """Boxes with positive median are green; negative median are red."""
+        import matplotlib.colors as mcolors
+
+        dates = [f"2024-01-0{i}" for i in range(1, 6)]  # Mon–Fri
+        # Make Mon/Tue strongly positive and Wed–Fri strongly negative
+        returns = [0.05, 0.04, -0.05, -0.04, -0.03]
+        df = pl.DataFrame({"date": dates, "returns": returns}).with_columns(
+            pl.col("date").cast(pl.Date)
+        )
+        fig = plots.plot_dow_returns(df)
+        ax = fig.axes[0]
+        boxes = [p for p in ax.patches if hasattr(p, "get_facecolor")]
+        colors = [mcolors.to_hex(p.get_facecolor()[:3]) for p in boxes]
+        from katsustats.plots import _COLORS
+
+        pos = mcolors.to_hex(mcolors.to_rgb(_COLORS["positive"]))
+        neg = mcolors.to_hex(mcolors.to_rgb(_COLORS["negative"]))
+        # Mon and Tue should be positive color; Wed–Fri negative
+        assert colors[0] == pos
+        assert colors[1] == pos
+        assert colors[2] == neg
+        assert colors[3] == neg
+        assert colors[4] == neg
+
     def test_weekends_shown_when_present(self):
-        """Bars for Sat/Sun appear when the data includes weekend dates."""
+        """Boxes for Sat/Sun appear when the data includes weekend dates."""
         dates = [
             "2024-01-01",  # Mon
             "2024-01-02",  # Tue
