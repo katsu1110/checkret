@@ -150,12 +150,6 @@ def main() -> None:
         help="Include Monte Carlo simulation section (default: off).",
     )
     p_report.add_argument(
-        "--no-monte-carlo",
-        action="store_false",
-        dest="monte_carlo",
-        help="Disable Monte Carlo simulation section.",
-    )
-    p_report.add_argument(
         "--mc-sims",
         type=int,
         default=1000,

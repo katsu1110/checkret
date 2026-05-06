@@ -333,7 +333,9 @@ class TestReportCommand:
 
 
 class TestMonteCarloCliFlags:
-    def test_no_monte_carlo_flag(self, csv_file: Path, tmp_path: Path, monkeypatch):
+    def test_monte_carlo_off_by_default(
+        self, csv_file: Path, tmp_path: Path, monkeypatch
+    ):
         out = tmp_path / "out.json"
         monkeypatch.setattr(
             "sys.argv",
@@ -343,7 +345,6 @@ class TestMonteCarloCliFlags:
                 str(csv_file),
                 "--format",
                 "json",
-                "--no-monte-carlo",
                 "-o",
                 str(out),
             ],
