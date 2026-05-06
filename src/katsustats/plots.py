@@ -95,6 +95,23 @@ def _align_to_common_dates(
     )
 
 
+def _returns_by_day_of_week(df: pl.DataFrame, dow_order: list[int]) -> list[np.ndarray]:
+    """Return daily return arrays ordered by ISO weekday number."""
+    dow_df = df.with_columns(pl.col("date").cast(pl.Date).dt.weekday().alias("dow"))
+    return [
+        dow_df.filter(pl.col("dow") == dow).get_column("returns").to_numpy()
+        for dow in dow_order
+    ]
+
+
+def _color_boxplot_by_median(bp) -> None:
+    """Color boxplot patches green/red based on the median line."""
+    for patch, median_line in zip(bp["boxes"], bp["medians"]):
+        median = median_line.get_ydata()[0]
+        patch.set_facecolor(_COLORS["positive"] if median >= 0 else _COLORS["negative"])
+        patch.set_alpha(0.7)
+
+
 # ---------------------------------------------------------------------------
 # Plot: Cumulative Returns
 # ---------------------------------------------------------------------------
@@ -691,46 +708,50 @@ def plot_returns_vs_benchmark(
 
 
 def plot_dow_returns(df: DataFrameLike, figsize: tuple = (10, 5)) -> Figure:
-    """Day-of-week bar chart showing mean return and win rate."""
+    """Day-of-week return distribution (box plot) and win rate."""
     df = ensure_polars(df)
     dow_df = stats.day_of_week_stats(df)
 
     names = dow_df.get_column("dow_name").to_list()
-    mean_ret = dow_df.get_column("mean_return").to_numpy()
-    wr = dow_df.get_column("win_rate").to_numpy()
+    dow_order = dow_df.get_column("dow").to_list()
+    box_data = _returns_by_day_of_week(df, dow_order)
+    win_rates = dow_df.get_column("win_rate").to_numpy()
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
 
-    # --- Mean Return ---
+    # --- Return Distribution ---
     _apply_style(ax1, fig)
-    colors = [_COLORS["positive"] if v >= 0 else _COLORS["negative"] for v in mean_ret]
-    bars1 = ax1.bar(
-        names, mean_ret, color=colors, alpha=0.85, edgecolor="white", linewidth=0.5
+    bp = ax1.boxplot(
+        box_data,
+        tick_labels=names,
+        patch_artist=True,
+        boxprops=dict(linewidth=0.8),
+        medianprops=dict(color="white", linewidth=2),
+        whiskerprops=dict(color=_COLORS["neutral"], linewidth=0.8),
+        capprops=dict(color=_COLORS["neutral"], linewidth=0.8),
+        flierprops=dict(
+            marker="o",
+            markerfacecolor=_COLORS["neutral"],
+            markersize=3,
+            linestyle="none",
+            alpha=0.5,
+        ),
     )
+    _color_boxplot_by_median(bp)
     ax1.axhline(0, color=_COLORS["neutral"], lw=0.8, ls="--")
     ax1.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
     ax1.set_title(
-        "Mean Return by Day", fontweight="bold", fontsize=11, color=_COLORS["text"]
+        "Return Distribution by Day",
+        fontweight="bold",
+        fontsize=11,
+        color=_COLORS["text"],
     )
-
-    # Add value labels
-    for bar, val in zip(bars1, mean_ret):
-        y_offset = bar.get_height() * 0.1
-        ax1.text(
-            bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + y_offset,
-            f"{val:.3%}",
-            ha="center",
-            va="bottom" if val >= 0 else "top",
-            fontsize=8,
-            color=_COLORS["text_secondary"],
-        )
 
     # --- Win Rate ---
     _apply_style(ax2, fig)
     bars2 = ax2.bar(
         names,
-        wr,
+        win_rates,
         color=_COLORS["strategy"],
         alpha=0.85,
         edgecolor="white",
@@ -738,12 +759,12 @@ def plot_dow_returns(df: DataFrameLike, figsize: tuple = (10, 5)) -> Figure:
     )
     ax2.axhline(0.5, color=_COLORS["neutral"], lw=0.8, ls="--")
     ax2.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
-    ax2.set_ylim(0, 1)
+    ax2.set_ylim(0, 1.1)
     ax2.set_title(
         "Win Rate by Day", fontweight="bold", fontsize=11, color=_COLORS["text"]
     )
 
-    for bar, val in zip(bars2, wr):
+    for bar, val in zip(bars2, win_rates):
         ax2.text(
             bar.get_x() + bar.get_width() / 2,
             bar.get_height() + 0.02,
