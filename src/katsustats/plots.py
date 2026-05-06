@@ -764,3 +764,143 @@ def plot_dow_returns(df: DataFrameLike, figsize: tuple = (10, 5)) -> Figure:
     )
     fig.tight_layout()
     return fig
+
+
+# ---------------------------------------------------------------------------
+# Plot: Monte Carlo Projection
+# ---------------------------------------------------------------------------
+
+
+def plot_monte_carlo(
+    df: DataFrameLike,
+    sims: int = 1000,
+    seed: int | None = None,
+    confidence_level: float = 0.95,
+    figsize: tuple = (12, 5),
+    _paths_df: pl.DataFrame | None = None,
+) -> Figure:
+    """Fan chart of Monte Carlo simulated paths with a confidence band.
+
+    Plots up to 200 individual paths as faint lines, a filled confidence
+    band, the median path, and the original (unshuffled) path.
+    """
+    paths_df = (
+        _paths_df
+        if _paths_df is not None
+        else stats.monte_carlo_paths(df, sims=sims, seed=seed)
+    )
+    steps = paths_df.get_column("step").to_numpy()
+    sim_cols = [c for c in paths_df.columns if c.startswith("sim_")]
+    paths_matrix = paths_df.select(sim_cols).to_numpy()  # (n_steps, sims)
+
+    alpha = (1.0 - confidence_level) / 2.0
+    lower = np.percentile(paths_matrix, alpha * 100, axis=1)
+    upper = np.percentile(paths_matrix, (1.0 - alpha) * 100, axis=1)
+    median = np.percentile(paths_matrix, 50, axis=1)
+    original = paths_matrix[:, 0]
+
+    fig, ax = plt.subplots(figsize=figsize)
+    _apply_style(ax, fig)
+
+    # Individual paths — subsample to keep the chart readable
+    stride = max(1, paths_matrix.shape[1] // 200)
+    subsampled = paths_matrix[:, ::stride]
+    for i in range(subsampled.shape[1]):
+        ax.plot(
+            steps,
+            subsampled[:, i],
+            lw=0.3,
+            color=_COLORS["neutral"],
+            alpha=0.25,
+        )
+
+    ax.fill_between(
+        steps,
+        lower,
+        upper,
+        color=_COLORS["strategy"],
+        alpha=0.15,
+        label=f"{confidence_level:.0%} CI",
+    )
+    ax.plot(steps, median, lw=1.8, color=_COLORS["strategy"], label="Median")
+    ax.plot(
+        steps,
+        original,
+        lw=1.6,
+        color=_COLORS["benchmark"],
+        ls="--",
+        label="Original",
+    )
+    ax.axhline(0, color=_COLORS["neutral"], lw=0.8, ls="--")
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
+    ax.legend(fontsize=9, frameon=False)
+    _add_title(ax, fig, f"Monte Carlo Projection ({sims:,} sims)")
+    fig.tight_layout()
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# Plot: Monte Carlo Terminal Value Distribution
+# ---------------------------------------------------------------------------
+
+
+def plot_monte_carlo_distribution(
+    df: DataFrameLike,
+    sims: int = 1000,
+    seed: int | None = None,
+    bins: int = 50,
+    figsize: tuple = (12, 5),
+    _paths_df: pl.DataFrame | None = None,
+) -> Figure:
+    """Histogram of terminal cumulative returns from Monte Carlo simulation."""
+    paths_df = (
+        _paths_df
+        if _paths_df is not None
+        else stats.monte_carlo_paths(df, sims=sims, seed=seed)
+    )
+    sim_cols = [c for c in paths_df.columns if c.startswith("sim_")]
+    terminal = paths_df.tail(1).select(sim_cols).to_numpy().flatten()
+    original_terminal = float(terminal[0])
+
+    p5 = float(np.percentile(terminal, 5))
+    p50 = float(np.percentile(terminal, 50))
+    p95 = float(np.percentile(terminal, 95))
+
+    fig, ax = plt.subplots(figsize=figsize)
+    _apply_style(ax, fig)
+
+    ax.hist(
+        terminal,
+        bins=bins,
+        color=_COLORS["strategy"],
+        alpha=0.7,
+        edgecolor="white",
+        linewidth=0.5,
+    )
+    ax.axvline(
+        p5,
+        color=_COLORS["negative"],
+        lw=1.4,
+        ls="--",
+        label=f"5th pct ({p5:.1%})",
+    )
+    ax.axvline(p50, color=_COLORS["strategy"], lw=1.6, label=f"Median ({p50:.1%})")
+    ax.axvline(
+        p95,
+        color=_COLORS["positive"],
+        lw=1.4,
+        ls="--",
+        label=f"95th pct ({p95:.1%})",
+    )
+    ax.axvline(
+        original_terminal,
+        color=_COLORS["benchmark"],
+        lw=1.6,
+        ls="-.",
+        label=f"Original ({original_terminal:.1%})",
+    )
+    ax.xaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
+    ax.legend(fontsize=9, frameon=False)
+    _add_title(ax, fig, f"Terminal Value Distribution ({sims:,} sims)")
+    fig.tight_layout()
+    return fig

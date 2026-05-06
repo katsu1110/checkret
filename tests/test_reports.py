@@ -32,6 +32,7 @@ class TestFull:
             "drawdowns",
             "dow_stats",
             "figures",
+            "monte_carlo",
         }
 
     def test_summary_is_raw_metrics_dict(self, sample_df):
@@ -267,14 +268,15 @@ class TestHtml:
         ).with_columns(pl.col("date").cast(pl.Date))
 
         with pytest.warns(UserWarning, match="duplicate dates"):
-            result = reports.html(duplicate_dates_df)
+            result = reports.html(duplicate_dates_df, monte_carlo=False)
 
         # HTML should reflect the compounded series (2 rows, not 3)
         assert isinstance(result, str)
         assert result == reports.html(
             pl.DataFrame(
                 {"date": ["2023-01-02", "2023-01-03"], "returns": [0.32, -0.10]}
-            ).with_columns(pl.col("date").cast(pl.Date))
+            ).with_columns(pl.col("date").cast(pl.Date)),
+            monte_carlo=False,
         )
 
 
@@ -299,6 +301,7 @@ class TestJson:
             "drawdowns",
             "day_of_week_stats",
             "regime_analysis",
+            "monte_carlo",
         }
         assert payload["metadata"]["title"] == "AI Report"
         assert payload["metadata"]["has_benchmark"] is False
@@ -426,3 +429,89 @@ class TestMarkdown:
             result = reports.markdown(duplicate_dates_df)
 
         assert "18.80%" in result
+
+
+# ---------------------------------------------------------------------------
+# Monte Carlo integration tests
+# ---------------------------------------------------------------------------
+
+
+class TestMonteCarloReports:
+    def test_full_returns_monte_carlo_summary(self, sample_df):
+        result = reports.full(
+            sample_df, show=False, monte_carlo=True, mc_sims=50, mc_seed=0
+        )
+        mc = result["monte_carlo"]
+        assert isinstance(mc, dict)
+        assert "terminal" in mc
+        assert "maxdd" in mc
+        assert "sharpe" in mc
+        assert "cagr" in mc
+
+    def test_full_monte_carlo_false_returns_none(self, sample_df):
+        result = reports.full(sample_df, show=False, monte_carlo=False)
+        assert result["monte_carlo"] is None
+
+    def test_full_monte_carlo_false_omits_figures(self, sample_df):
+        result = reports.full(sample_df, show=False, monte_carlo=False)
+        figs = result["figures"]
+        assert "monte_carlo" not in figs
+        assert "monte_carlo_distribution" not in figs
+
+    def test_full_monte_carlo_true_includes_figures(self, sample_df):
+        result = reports.full(
+            sample_df, show=False, monte_carlo=True, mc_sims=20, mc_seed=0
+        )
+        figs = result["figures"]
+        assert "monte_carlo" in figs
+        assert "monte_carlo_distribution" in figs
+
+    def test_html_contains_monte_carlo_section(self, sample_df):
+        result = reports.html(sample_df, monte_carlo=True, mc_sims=50, mc_seed=0)
+        assert "Monte Carlo Projection" in result
+
+    def test_html_no_monte_carlo_omits_section(self, sample_df):
+        result = reports.html(sample_df, monte_carlo=False)
+        assert "Monte Carlo Projection" not in result
+
+    def test_json_includes_monte_carlo_key(self, sample_df):
+        payload = json.loads(
+            reports.json(sample_df, monte_carlo=True, mc_sims=50, mc_seed=0)
+        )
+        assert "monte_carlo" in payload
+        assert payload["monte_carlo"] is not None
+        assert "terminal" in payload["monte_carlo"]
+
+    def test_json_no_monte_carlo_is_null(self, sample_df):
+        payload = json.loads(reports.json(sample_df, monte_carlo=False))
+        assert payload["monte_carlo"] is None
+
+    def test_json_bust_goal_probs_present_when_set(self, sample_df):
+        payload = json.loads(
+            reports.json(
+                sample_df,
+                monte_carlo=True,
+                mc_sims=50,
+                mc_bust=-0.01,
+                mc_goal=0.01,
+                mc_seed=0,
+            )
+        )
+        mc = payload["monte_carlo"]
+        assert mc["bust_probability"] is not None
+        assert mc["goal_probability"] is not None
+        assert 0.0 <= mc["bust_probability"] <= 1.0
+        assert 0.0 <= mc["goal_probability"] <= 1.0
+
+    def test_markdown_includes_monte_carlo_section(self, sample_df):
+        result = reports.markdown(sample_df, monte_carlo=True, mc_sims=50, mc_seed=0)
+        assert "## Monte Carlo" in result
+
+    def test_markdown_no_monte_carlo_omits_section(self, sample_df):
+        result = reports.markdown(sample_df, monte_carlo=False)
+        assert "## Monte Carlo" not in result
+
+    def test_json_seed_determinism(self, sample_df):
+        j1 = reports.json(sample_df, monte_carlo=True, mc_sims=50, mc_seed=42)
+        j2 = reports.json(sample_df, monte_carlo=True, mc_sims=50, mc_seed=42)
+        assert j1 == j2

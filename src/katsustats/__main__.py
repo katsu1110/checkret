@@ -70,6 +70,11 @@ def _cmd_report(args: argparse.Namespace) -> None:
         rf=args.rf,
         title=args.title,
         output=output,
+        monte_carlo=args.monte_carlo,
+        mc_sims=args.mc_sims,
+        mc_bust=args.mc_bust,
+        mc_goal=args.mc_goal,
+        mc_seed=args.mc_seed,
     )
     print(f"Report written to {output}")
 
@@ -136,6 +141,47 @@ def main() -> None:
         default="returns",
         dest="benchmark_returns_col",
         help="Benchmark returns column name (default: returns).",
+    )
+    p_report.add_argument(
+        "--monte-carlo",
+        action="store_true",
+        default=False,
+        dest="monte_carlo",
+        help="Include Monte Carlo simulation section (default: off).",
+    )
+    p_report.add_argument(
+        "--no-monte-carlo",
+        action="store_false",
+        dest="monte_carlo",
+        help="Disable Monte Carlo simulation section.",
+    )
+    p_report.add_argument(
+        "--mc-sims",
+        type=int,
+        default=1000,
+        dest="mc_sims",
+        help="Number of Monte Carlo simulations (default: 1000).",
+    )
+    p_report.add_argument(
+        "--mc-seed",
+        type=int,
+        default=None,
+        dest="mc_seed",
+        help="Random seed for Monte Carlo reproducibility (default: None).",
+    )
+    p_report.add_argument(
+        "--mc-bust",
+        type=float,
+        default=None,
+        dest="mc_bust",
+        help="Drawdown threshold for bust probability, e.g. -0.2 (default: None).",
+    )
+    p_report.add_argument(
+        "--mc-goal",
+        type=float,
+        default=None,
+        dest="mc_goal",
+        help="Return threshold for goal probability, e.g. 0.5 (default: None).",
     )
     p_report.set_defaults(func=_cmd_report)
 

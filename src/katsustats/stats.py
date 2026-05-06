@@ -1028,3 +1028,131 @@ def period_performance(
     if base_df is not None:
         data["benchmark"] = rows_bench
     return pl.DataFrame(data)
+
+
+# ---------------------------------------------------------------------------
+# Monte Carlo Simulation
+# ---------------------------------------------------------------------------
+
+
+def _distribution_stats(
+    arr: np.ndarray, *, with_quartiles: bool = False
+) -> dict[str, float]:
+    """Summary statistics of a 1-D array, dropping NaNs."""
+    a = arr[~np.isnan(arr)]
+    result: dict[str, float] = {
+        "min": float(np.min(a)),
+        "max": float(np.max(a)),
+        "mean": float(np.mean(a)),
+        "median": float(np.median(a)),
+        "std": float(np.std(a, ddof=1)) if len(a) > 1 else 0.0,
+        "percentile_5": float(np.percentile(a, 5)),
+        "percentile_95": float(np.percentile(a, 95)),
+    }
+    if with_quartiles:
+        result["percentile_25"] = float(np.percentile(a, 25))
+        result["percentile_75"] = float(np.percentile(a, 75))
+    return result
+
+
+def _build_sim_returns(arr: np.ndarray, sims: int, seed: int | None) -> np.ndarray:
+    """Return (n_periods, sims) raw returns matrix. Column 0 = original."""
+    n = len(arr)
+    rng = np.random.default_rng(seed)
+    sim_returns = np.empty((n, sims))
+    sim_returns[:, 0] = arr
+    for i in range(1, sims):
+        sim_returns[:, i] = rng.permutation(arr)
+    return sim_returns
+
+
+def _simulate_paths(r: pl.Series, sims: int, seed: int | None) -> np.ndarray:
+    """Return (n_periods, sims) cumulative-returns array. Column 0 = original."""
+    assert sims >= 1, "sims must be >= 1"
+    arr = r.drop_nulls().to_numpy()
+    assert len(arr) > 0, "monte carlo requires at least one return"
+    return np.cumprod(1 + _build_sim_returns(arr, sims, seed), axis=0) - 1
+
+
+def monte_carlo_paths(
+    df: DataFrameLike,
+    sims: int = 1000,
+    seed: int | None = None,
+) -> pl.DataFrame:
+    """Simulate return paths by shuffling historical returns.
+
+    Returns a wide Polars DataFrame with columns ['step', 'sim_0', 'sim_1', ...]
+    of cumulative compounded returns. 'sim_0' is the original (unshuffled) path.
+    """
+    r = _to_returns(df)
+    cum_paths = _simulate_paths(r, sims, seed)
+    n = cum_paths.shape[0]
+    data: dict[str, object] = {"step": np.arange(1, n + 1)}
+    for i in range(sims):
+        data[f"sim_{i}"] = cum_paths[:, i]
+    return pl.DataFrame(data)
+
+
+def monte_carlo_summary(
+    df: DataFrameLike,
+    sims: int = 1000,
+    bust: float | None = None,
+    goal: float | None = None,
+    rf: float = 0.0,
+    periods: int = 252,
+    seed: int | None = None,
+) -> dict:
+    """Probabilistic risk summary via Monte Carlo path simulation.
+
+    Shuffles historical returns sims times, then returns distributions of
+    terminal value, max drawdown, Sharpe ratio, and CAGR, plus optional
+    bust and goal probabilities.
+
+    Returns a dict with keys: terminal, maxdd, sharpe, cagr,
+    bust_probability, goal_probability, sims, seed.
+    """
+    r = _to_returns(df)
+    arr = r.drop_nulls().to_numpy()
+    assert len(arr) > 0, "monte carlo requires at least one return"
+    assert sims >= 1, "sims must be >= 1"
+    n = len(arr)
+    sim_returns = _build_sim_returns(arr, sims, seed)
+    cum_paths = np.cumprod(1 + sim_returns, axis=0) - 1
+    terminal = cum_paths[-1, :]
+
+    # max drawdown per path (vectorised)
+    cum_growth = 1.0 + cum_paths
+    running_max = np.maximum.accumulate(cum_growth, axis=0)
+    dd = (cum_growth - running_max) / running_max
+    maxdd_per_path = dd.min(axis=0)
+
+    # Sharpe per path
+    excess = sim_returns.mean(axis=0) - rf / periods
+    std_per_path = sim_returns.std(axis=0, ddof=1)
+    sharpe_per_path = np.where(
+        std_per_path > 0, excess / std_per_path * np.sqrt(float(periods)), 0.0
+    )
+
+    # CAGR per path
+    years = n / periods
+    cagr_per_path = np.where(
+        terminal > -1, (1.0 + terminal) ** (1.0 / years) - 1.0, np.nan
+    )
+
+    bust_prob: float | None = None
+    if bust is not None:
+        bust_prob = float((maxdd_per_path <= bust).sum() / sims)
+    goal_prob: float | None = None
+    if goal is not None:
+        goal_prob = float((terminal >= goal).sum() / sims)
+
+    return {
+        "terminal": _distribution_stats(terminal, with_quartiles=True),
+        "maxdd": _distribution_stats(maxdd_per_path),
+        "sharpe": _distribution_stats(sharpe_per_path),
+        "cagr": _distribution_stats(cagr_per_path),
+        "bust_probability": bust_prob,
+        "goal_probability": goal_prob,
+        "sims": sims,
+        "seed": seed,
+    }
