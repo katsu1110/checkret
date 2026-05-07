@@ -708,7 +708,7 @@ def plot_returns_vs_benchmark(
 
 
 def plot_dow_returns(df: DataFrameLike, figsize: tuple = (10, 5)) -> Figure:
-    """Day-of-week return distribution (box plot) and win rate."""
+    """Day-of-week return distribution (box plot), win rate, and total return overlay."""
     df = ensure_polars(df)
     dow_df = stats.day_of_week_stats(df)
 
@@ -747,21 +747,24 @@ def plot_dow_returns(df: DataFrameLike, figsize: tuple = (10, 5)) -> Figure:
         color=_COLORS["text"],
     )
 
-    # --- Win Rate ---
     _apply_style(ax2, fig)
     bars2 = ax2.bar(
         names,
         win_rates,
         color=_COLORS["strategy"],
-        alpha=0.85,
+        alpha=0.65,
         edgecolor="white",
         linewidth=0.5,
+        label="Win Rate",
     )
     ax2.axhline(0.5, color=_COLORS["neutral"], lw=0.8, ls="--")
     ax2.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
     ax2.set_ylim(0, 1.1)
     ax2.set_title(
-        "Win Rate by Day", fontweight="bold", fontsize=11, color=_COLORS["text"]
+        "Win Rate & Total Return by Day",
+        fontweight="bold",
+        fontsize=11,
+        color=_COLORS["text"],
     )
 
     for bar, val in zip(bars2, win_rates):
@@ -774,6 +777,36 @@ def plot_dow_returns(df: DataFrameLike, figsize: tuple = (10, 5)) -> Figure:
             fontsize=8,
             color=_COLORS["text_secondary"],
         )
+
+    total_returns = dow_df.get_column("total_return").to_numpy()
+    ax2r = ax2.twinx()
+    ax2r.plot(
+        names,
+        total_returns,
+        color=_COLORS["positive"],
+        marker="o",
+        markersize=5,
+        linewidth=1.8,
+        label="Total Return",
+        zorder=3,
+    )
+    ax2r.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
+    ax2r.tick_params(axis="y", labelcolor=_COLORS["positive"], labelsize=8)
+    ax2r.set_ylabel("Total Return", color=_COLORS["positive"], fontsize=9)
+    ax2r.spines["right"].set_color(_COLORS["positive"])
+    ax2r.spines["right"].set_linewidth(0.8)
+    for spine in ("top", "left", "bottom"):
+        ax2r.spines[spine].set_visible(False)
+
+    lines1, labels1 = ax2.get_legend_handles_labels()
+    lines2, labels2 = ax2r.get_legend_handles_labels()
+    ax2.legend(
+        lines1 + lines2,
+        labels1 + labels2,
+        loc="upper right",
+        fontsize=7,
+        framealpha=0.7,
+    )
 
     fig.set_facecolor("white")
     fig.suptitle(
