@@ -1083,8 +1083,8 @@ def _build_sim_returns(arr: np.ndarray, sims: int, seed: int | None) -> np.ndarr
 
 def _sim_max_drawdowns(cum_paths: np.ndarray) -> np.ndarray:
     """Max drawdown per simulation path (column), anchored to initial price 1."""
-    prices = np.vstack([np.ones((1, cum_paths.shape[1])), 1.0 + cum_paths])
-    running_max = np.maximum.accumulate(prices, axis=0)
+    prices = 1.0 + cum_paths
+    running_max = np.maximum(np.maximum.accumulate(prices, axis=0), 1.0)
     return ((prices - running_max) / running_max).min(axis=0)
 
 

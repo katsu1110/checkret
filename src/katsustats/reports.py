@@ -1284,7 +1284,7 @@ def _build_html(
         mc_charts = (
             f'<div class="charts-grid">'
             f"{_grid_section('Monte Carlo Projection', mc_b64)}"
-            f"{_grid_section('Terminal Value Distribution', mc_dist_b64)}"
+            f"{_grid_section('Max Drawdown Distribution', mc_dist_b64)}"
             f"</div>"
         )
         monte_carlo_section = (

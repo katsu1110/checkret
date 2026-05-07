@@ -914,8 +914,8 @@ def plot_monte_carlo_distribution(
         else stats.monte_carlo_paths(df, sims=sims, seed=seed)
     )
     sim_cols = [c for c in paths_df.columns if c.startswith("sim_")]
-    cum = paths_df.select(sim_cols).to_numpy()
-    max_drawdowns = stats._sim_max_drawdowns(cum)
+    cum_paths = paths_df.select(sim_cols).to_numpy()
+    max_drawdowns = stats._sim_max_drawdowns(cum_paths)
 
     original_mdd = float(max_drawdowns[0])
     p5, p50, p95 = (float(v) for v in np.percentile(max_drawdowns, [5, 50, 95]))
