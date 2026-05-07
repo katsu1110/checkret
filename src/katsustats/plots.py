@@ -895,7 +895,7 @@ def plot_monte_carlo(
 
 
 # ---------------------------------------------------------------------------
-# Plot: Monte Carlo Terminal Value Distribution
+# Plot: Monte Carlo Max Drawdown Distribution
 # ---------------------------------------------------------------------------
 
 
@@ -907,27 +907,26 @@ def plot_monte_carlo_distribution(
     figsize: tuple = (12, 5),
     _paths_df: pl.DataFrame | None = None,
 ) -> Figure:
-    """Histogram of terminal cumulative returns from Monte Carlo simulation."""
+    """Histogram of max drawdowns across Monte Carlo simulation paths."""
     paths_df = (
         _paths_df
         if _paths_df is not None
         else stats.monte_carlo_paths(df, sims=sims, seed=seed)
     )
     sim_cols = [c for c in paths_df.columns if c.startswith("sim_")]
-    terminal = paths_df.tail(1).select(sim_cols).to_numpy().flatten()
-    original_terminal = float(terminal[0])
+    cum = paths_df.select(sim_cols).to_numpy()
+    max_drawdowns = stats._sim_max_drawdowns(cum)
 
-    p5 = float(np.percentile(terminal, 5))
-    p50 = float(np.percentile(terminal, 50))
-    p95 = float(np.percentile(terminal, 95))
+    original_mdd = float(max_drawdowns[0])
+    p5, p50, p95 = (float(v) for v in np.percentile(max_drawdowns, [5, 50, 95]))
 
     fig, ax = plt.subplots(figsize=figsize)
     _apply_style(ax, fig)
 
     ax.hist(
-        terminal,
+        max_drawdowns,
         bins=bins,
-        color=_COLORS["strategy"],
+        color=_COLORS["negative"],
         alpha=0.7,
         edgecolor="white",
         linewidth=0.5,
@@ -948,14 +947,14 @@ def plot_monte_carlo_distribution(
         label=f"95th pct ({p95:.1%})",
     )
     ax.axvline(
-        original_terminal,
+        original_mdd,
         color=_COLORS["benchmark"],
         lw=1.6,
         ls="-.",
-        label=f"Original ({original_terminal:.1%})",
+        label=f"Original ({original_mdd:.1%})",
     )
     ax.xaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
     ax.legend(fontsize=9, frameon=False)
-    _add_title(ax, fig, f"Terminal Value Distribution ({sims:,} sims)")
+    _add_title(ax, fig, f"Max Drawdown Distribution ({sims:,} sims)")
     fig.tight_layout()
     return fig

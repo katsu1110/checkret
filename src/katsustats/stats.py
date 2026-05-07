@@ -1081,6 +1081,13 @@ def _build_sim_returns(arr: np.ndarray, sims: int, seed: int | None) -> np.ndarr
     return sim_returns
 
 
+def _sim_max_drawdowns(cum_paths: np.ndarray) -> np.ndarray:
+    """Max drawdown per simulation path (column), anchored to initial price 1."""
+    prices = np.vstack([np.ones((1, cum_paths.shape[1])), 1.0 + cum_paths])
+    running_max = np.maximum.accumulate(prices, axis=0)
+    return ((prices - running_max) / running_max).min(axis=0)
+
+
 def _simulate_paths(r: pl.Series, sims: int, seed: int | None) -> np.ndarray:
     """Return (n_periods, sims) cumulative-returns array. Column 0 = original."""
     assert sims >= 1, "sims must be >= 1"
@@ -1135,11 +1142,7 @@ def monte_carlo_summary(
     cum_paths = np.cumprod(1 + sim_returns, axis=0) - 1
     terminal = cum_paths[-1, :]
 
-    # max drawdown per path (vectorised)
-    cum_growth = 1.0 + cum_paths
-    running_max = np.maximum.accumulate(cum_growth, axis=0)
-    dd = (cum_growth - running_max) / running_max
-    maxdd_per_path = dd.min(axis=0)
+    maxdd_per_path = _sim_max_drawdowns(cum_paths)
 
     # Sharpe per path
     excess = sim_returns.mean(axis=0) - rf / periods
