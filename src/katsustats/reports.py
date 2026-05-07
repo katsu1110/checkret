@@ -369,9 +369,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         sh = mc["sharpe"]
         ca = mc["cagr"]
         mc_rows = [
-            ["Terminal Return (5th pct)", f"{t['percentile_5']:.2%}"],
-            ["Terminal Return (Median)", f"{t['median']:.2%}"],
-            ["Terminal Return (95th pct)", f"{t['percentile_95']:.2%}"],
+            ["Terminal Return", f"{t['mean']:.2%}"],
             ["Max Drawdown (5th pct)", f"{md['percentile_5']:.2%}"],
             ["Max Drawdown (Median)", f"{md['median']:.2%}"],
             ["Max Drawdown (95th pct)", f"{md['percentile_95']:.2%}"],
@@ -1257,9 +1255,7 @@ def _build_html(
         t = mc_sum["terminal"]
         md = mc_sum["maxdd"]
         mc_rows = [
-            ("Terminal Return (5th pct)", f"{t['percentile_5']:.2%}"),
-            ("Terminal Return (Median)", f"{t['median']:.2%}"),
-            ("Terminal Return (95th pct)", f"{t['percentile_95']:.2%}"),
+            ("Terminal Return", f"{t['mean']:.2%}"),
             ("Max Drawdown (5th pct)", f"{md['percentile_5']:.2%}"),
             ("Max Drawdown (Median)", f"{md['median']:.2%}"),
             ("Max Drawdown (95th pct)", f"{md['percentile_95']:.2%}"),
@@ -1288,7 +1284,7 @@ def _build_html(
         mc_charts = (
             f'<div class="charts-grid">'
             f"{_grid_section('Monte Carlo Projection', mc_b64)}"
-            f"{_grid_section('Terminal Value Distribution', mc_dist_b64)}"
+            f"{_grid_section('Max Drawdown Distribution', mc_dist_b64)}"
             f"</div>"
         )
         monte_carlo_section = (

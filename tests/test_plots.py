@@ -471,6 +471,23 @@ class TestPlotMonteCarloDistribution:
         ]
         assert len(vlines) >= 3
 
+    def test_drawdown_values_are_negative(self, sample_df):
+        fig = plots.plot_monte_carlo_distribution(sample_df, sims=50, seed=0)
+        ax = fig.axes[0]
+        vlines = [
+            ln
+            for ln in ax.get_lines()
+            if len(ln.get_xdata()) == 2 and ln.get_xdata()[0] == ln.get_xdata()[1]
+        ]
+        for ln in vlines:
+            assert ln.get_xdata()[0] <= 0
+
+    def test_max_drawdowns_vary_across_sims(self, sample_df):
+        import katsustats.stats as stats
+
+        result = stats.monte_carlo_summary(sample_df, sims=100, seed=0)
+        assert result["maxdd"]["std"] > 0
+
     def test_accepts_pandas_input(self, sample_pandas_df):
         fig = plots.plot_monte_carlo_distribution(sample_pandas_df, sims=20, seed=0)
         assert isinstance(fig, Figure)
